@@ -5,6 +5,7 @@ A production-ready Helm chart for deploying Plex Media Server and WordPress site
 ## What's Deployed
 
 - **Plex Media Server** with object storage integration
+- **AudioBookShelf** for audiobooks and podcasts
 - **3 WordPress Sites** with dedicated MySQL databases
 - **Automatic SSL** certificates via Let's Encrypt
 - **Ingress routing** for multiple domains
@@ -14,6 +15,7 @@ A production-ready Helm chart for deploying Plex Media Server and WordPress site
 After deployment, services are available at:
 
 - **Plex**: https://tv.christinepuk.net
+- **AudioBookShelf**: https://books.christinepuk.net
 - **Blog**: https://blog.christinepuk.net  
 - **DJ Pup**: https://djpup.christinepuk.net
 - **Surf**: https://surf.christinepuk.net

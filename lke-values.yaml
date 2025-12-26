@@ -4,6 +4,29 @@ global:
   domain: "christinepuk.net"
   timezone: "UTC"
 
+# AudioBookShelf configuration
+audiobookshelf:
+  enabled: true
+  persistence:
+    config:
+      size: 20Gi
+      storageClass: "linode-block-storage-retain"
+    audiobooks:
+      size: 200Gi
+      storageClass: "linode-block-storage-retain"
+    metadata:
+      size: 20Gi
+      storageClass: "linode-block-storage-retain"
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 200m
+    limits:
+      memory: 512Mi
+      cpu: 500m
+  ingress:
+    host: "books.christinepuk.net"
+
 # Plex configuration
 plex:
   enabled: true

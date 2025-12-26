@@ -2,6 +2,68 @@
 Storage classes and Persistent Volume Claims for all services
 */}}
 
+{{- if .Values.audiobookshelf.enabled }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "multi-service.fullname" . }}-audiobookshelf-config
+  labels:
+    {{- include "multi-service.labels" . | nindent 4 }}
+    app.kubernetes.io/component: audiobookshelf
+spec:
+  accessModes:
+    - {{ .Values.audiobookshelf.persistence.config.accessMode }}
+  resources:
+    requests:
+      storage: {{ .Values.audiobookshelf.persistence.config.size }}
+  {{- if .Values.audiobookshelf.persistence.config.storageClass }}
+  storageClassName: {{ .Values.audiobookshelf.persistence.config.storageClass }}
+  {{- else if .Values.global.storageClass }}
+  storageClassName: {{ .Values.global.storageClass }}
+  {{- end }}
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "multi-service.fullname" . }}-audiobookshelf-audiobooks
+  labels:
+    {{- include "multi-service.labels" . | nindent 4 }}
+    app.kubernetes.io/component: audiobookshelf
+spec:
+  accessModes:
+    - {{ .Values.audiobookshelf.persistence.audiobooks.accessMode }}
+  resources:
+    requests:
+      storage: {{ .Values.audiobookshelf.persistence.audiobooks.size }}
+  {{- if .Values.audiobookshelf.persistence.audiobooks.storageClass }}
+  storageClassName: {{ .Values.audiobookshelf.persistence.audiobooks.storageClass }}
+  {{- else if .Values.global.storageClass }}
+  storageClassName: {{ .Values.global.storageClass }}
+  {{- end }}
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "multi-service.fullname" . }}-audiobookshelf-metadata
+  labels:
+    {{- include "multi-service.labels" . | nindent 4 }}
+    app.kubernetes.io/component: audiobookshelf
+spec:
+  accessModes:
+    - {{ .Values.audiobookshelf.persistence.metadata.accessMode }}
+  resources:
+    requests:
+      storage: {{ .Values.audiobookshelf.persistence.metadata.size }}
+  {{- if .Values.audiobookshelf.persistence.metadata.storageClass }}
+  storageClassName: {{ .Values.audiobookshelf.persistence.metadata.storageClass }}
+  {{- else if .Values.global.storageClass }}
+  storageClassName: {{ .Values.global.storageClass }}
+  {{- end }}
+{{- end }}
+
 {{- if .Values.plex.enabled }}
 ---
 apiVersion: v1

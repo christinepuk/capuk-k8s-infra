@@ -173,7 +173,7 @@ spec:
       {{- if .Values.plex.rclone.enabled }}
       - name: rclone-config
         secret:
-          secretName: {{ include "multi-service.fullname" . }}-rclone-config
+          secretName: {{ include "multi-service.fullname" . }}-rclone-secret
       - name: rclone-media
         emptyDir: {}
       {{- end }}

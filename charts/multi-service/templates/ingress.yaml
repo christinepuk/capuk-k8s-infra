@@ -1,4 +1,40 @@
+{{- if .Values.audiobookshelf.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "multi-service.fullname" . }}-audiobookshelf
+  labels:
+    {{- include "multi-service.labels" . | nindent 4 }}
+    app.kubernetes.io/component: audiobookshelf
+  {{- with .Values.audiobookshelf.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if .Values.audiobookshelf.ingress.className }}
+  ingressClassName: {{ .Values.audiobookshelf.ingress.className }}
+  {{- end }}
+  {{- if .Values.audiobookshelf.ingress.tls.enabled }}
+  tls:
+  - hosts:
+    - {{ .Values.audiobookshelf.ingress.host | quote }}
+    secretName: {{ .Values.audiobookshelf.ingress.tls.secretName }}
+  {{- end }}
+  rules:
+  - host: {{ .Values.audiobookshelf.ingress.host | quote }}
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: {{ include "multi-service.fullname" . }}-audiobookshelf
+            port:
+              number: {{ .Values.audiobookshelf.service.port }}
+{{- end }}
+
 {{- if .Values.plex.ingress.enabled }}
+---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:

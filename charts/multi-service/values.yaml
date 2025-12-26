@@ -7,6 +7,93 @@ global:
   timezone: "UTC"
   domain: "example.com"
 
+# AudioBookShelf configuration
+audiobookshelf:
+  enabled: true
+  image:
+    repository: ghcr.io/advplyr/audiobookshelf
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  
+  persistence:
+    config:
+      enabled: true
+      size: 10Gi
+      storageClass: ""
+      accessMode: ReadWriteOnce
+    audiobooks:
+      enabled: true
+      size: 100Gi
+      storageClass: ""
+      accessMode: ReadWriteOnce
+    metadata:
+      enabled: true
+      size: 10Gi
+      storageClass: ""
+      accessMode: ReadWriteOnce
+  
+  resources:
+    limits:
+      memory: 1Gi
+      cpu: 1000m
+    requests:
+      memory: 512Mi
+      cpu: 250m
+  
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 80
+  
+  # rclone configuration for object storage
+  rclone:
+    enabled: true
+    image:
+      repository: rclone/rclone
+      tag: "latest"
+      pullPolicy: IfNotPresent
+    
+    # Remote configuration
+    remoteName: "linode"            # Name for your remote
+    remotePath: "capuk-media"       # Your bucket name (same as Plex)
+    type: "s3"                      # Storage type: s3, b2, gcs, etc.
+    
+    # Configuration parameters (key-value pairs)
+    config:
+      provider: "Other"             # Use "Other" for Linode Object Storage
+      env_auth: "false"             # Disable environment auth
+      access_key_id: ""             # Your access key
+      secret_access_key: ""         # Your secret key  
+      endpoint: ""                  # e.g., "us-iad-1.linodeobjects.com"
+      region: "us-iad-1"            # Region
+      # chunk_size: "64M"
+      # upload_cutoff: "200M"
+    
+    # VFS (Virtual File System) cache settings
+    vfsCacheMode: "writes"      # off, minimal, writes, full
+    vfsCacheMaxSize: "1G"       # Maximum cache size
+    vfsCacheMaxAge: "1h"        # Maximum age of cache entries
+    bufferSize: "64M"           # Buffer size for reading
+    dirCacheTime: "5m"          # Directory cache time
+    timeout: "1h"               # Connection timeout
+    contimeout: "60s"           # Connection timeout for initial connection
+    
+    # Extra rclone arguments
+    extraArgs: []
+      # - "--transfers=4"
+      # - "--checkers=8"
+  
+  ingress:
+    enabled: true
+    className: "nginx"
+    annotations:
+      cert-manager.io/cluster-issuer: "letsencrypt-prod"
+      nginx.ingress.kubernetes.io/proxy-body-size: "0"
+    host: "books.christinepuk.net"
+    tls:
+      enabled: true
+      secretName: "audiobookshelf-tls"
+
 # Plex Media Server configuration
 plex:
   enabled: true
