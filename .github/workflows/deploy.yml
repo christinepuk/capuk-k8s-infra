@@ -22,7 +22,7 @@ on:
 
 env:
   HELM_VERSION: "3.13.3"
-  KUBECTL_VERSION: "1.29.0"
+  KUBECTL_VERSION: "1.30.0"
 
 jobs:
   validate:
