@@ -58,6 +58,7 @@ cp charts/multi-service/values.yaml production-values.yaml
 Edit `production-values.yaml` with your specific configuration:
 - Replace `example.com` with your actual domain
 - Set Plex claim token from https://plex.tv/claim
+- Configure rclone object storage for Plex and AudioBookShelf (optional)
 - Adjust storage sizes based on your needs
 - Configure resource limits for your cluster capacity
 
@@ -104,18 +105,19 @@ kubectl get svc -n ingress-nginx ingress-nginx-controller
 ```
 
 Add DNS records for:
-- nextcloud.yourdomain.com
-- plex.yourdomain.com  
+- plex.yourdomain.com
+- books.yourdomain.com (AudioBookShelf)
 - site1.yourdomain.com
 - site2.yourdomain.com
 - site3.yourdomain.com
 
 ## Post-Deployment Configuration
 
-### Nextcloud Setup
-1. Access `https://nextcloud.yourdomain.com`
-2. Complete the Nextcloud AIO setup wizard
-3. Configure admin account and settings
+### AudioBookShelf Setup
+1. Access `https://books.yourdomain.com`
+2. Complete the initial AudioBookShelf setup
+3. Add audiobook libraries pointing to `/data/Books/Audio` or `/data/Podcasts`
+4. Configure users and access settings
 
 ### Plex Setup  
 1. Access `https://plex.yourdomain.com`
@@ -123,12 +125,17 @@ Add DNS records for:
 3. Add media libraries pointing to `/data`
 4. Configure remote access settings
 
-### Accessing Plex
-Your Plex should now be accessible via:
+### Accessing Services
+Your services should now be accessible via:
 
+**AudioBookShelf**:
+- **Domain access**: https://books.yourdomain.com
+- **Local access**: `kubectl port-forward svc/multi-service-audiobookshelf 80:80 -n multi-service`
+
+**Plex**:
+- **Domain access**: https://plex.yourdomain.com  
 - **Local access**: `kubectl port-forward svc/multi-service-plex 32400:32400 -n multi-service`
 - **Web access**: http://localhost:32400/web
-- **Domain access**: https://plex.christinepuk.net (if ingress is configured)
 
 ### WordPress Sites
 For each WordPress site:

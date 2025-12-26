@@ -1,6 +1,6 @@
-# Plex Object Storage Setup with rclone
+# Media Object Storage Setup with rclone
 
-This guide shows how to configure Plex to use object storage (like Linode Object Storage) via rclone instead of local persistent volumes.
+This guide shows how to configure Plex and AudioBookShelf to use object storage (like Linode Object Storage) via rclone instead of local persistent volumes.
 
 ## Prerequisites
 
@@ -10,7 +10,7 @@ This guide shows how to configure Plex to use object storage (like Linode Object
 
 ## Using an Existing Object Storage Bucket
 
-If you already have media files in object storage (like an existing Linode Object Storage bucket), you can connect Plex directly to it.
+If you already have media files in object storage (like an existing Linode Object Storage bucket), you can connect both Plex and AudioBookShelf directly to it.
 
 ### Step 0: Verify Your Existing Bucket
 
@@ -18,11 +18,11 @@ First, verify your existing bucket structure and contents:
 
 1. **Check your bucket name and region** in your object storage provider
 2. **Verify access credentials** have read/write permissions to the bucket
-3. **Review your media organization** - Plex works best with organized folder structures
+3. **Review your media organization** - Both Plex and AudioBookShelf work best with organized folder structures
 
 #### Test Your Existing Bucket Access
 
-Before configuring Plex, test rclone access to your existing bucket:
+Before configuring the services, test rclone access to your existing bucket:
 
 ```bash
 # Test with your existing rclone config (if you have one)
@@ -38,7 +38,7 @@ rclone ls linode:capuk-media | head -10
 
 ### Recommended Bucket Structure
 
-If your existing bucket isn't organized, consider this structure for optimal Plex experience:
+If your existing bucket isn't organized, consider this structure for optimal experience with both services:
 
 ```
 your-bucket/
@@ -48,6 +48,19 @@ your-bucket/
 │   └── Another Movie (Year)/
 ├── TV Shows/
 │   ├── Show Name/
+│   │   └── Season 01/
+│   │       └── S01E01 - Episode Name.mp4
+├── Books/
+│   ├── Audio/
+│   │   ├── Author Name - Book Title/
+│   │   │   ├── Chapter 01.mp3
+│   │   │   └── Chapter 02.mp3
+│   │   └── Another Author - Book Title/
+│   └── Text/
+└── Podcasts/
+    ├── Podcast Name/
+    │   ├── Episode 001.mp3
+    │   └── Episode 002.mp3
 │   │   ├── Season 01/
 │   │   └── Season 02/
 │   └── Another Show/
@@ -70,7 +83,7 @@ your-bucket/
 
 ### Step 1: Configure Object Storage Credentials
 
-Edit `lke-values.yaml` and update the rclone section to point to your **existing bucket**:
+Edit `lke-values.yaml` and update the rclone section to point to your **existing bucket** for both services:
 
 ```yaml
 plex:
@@ -81,6 +94,22 @@ plex:
     type: "s3"                              # Storage type: s3, b2, gcs, etc.
     
     # Configuration parameters (flattened format)
+    config:
+      provider: "Other"                     # Use "Other" for Linode Object Storage
+      env_auth: "false"                     # Disable environment auth
+      access_key_id: "YOUR_ACCESS_KEY"      # Your access key
+      secret_access_key: "YOUR_SECRET_KEY"  # Your secret key  
+      endpoint: "us-iad-1.linodeobjects.com" # Your region endpoint
+      region: "us-iad-1"                   # Your region
+
+audiobookshelf:
+  rclone:
+    enabled: true
+    remoteName: "linode"                   # Same remote name
+    remotePath: "capuk-media"               # Same bucket name
+    type: "s3"                              # Storage type: s3, b2, gcs, etc.
+    
+    # Configuration parameters (same as Plex)
     config:
       provider: "Other"                     # Use "Other" for Linode Object Storage
       env_auth: "false"                     # Disable environment auth

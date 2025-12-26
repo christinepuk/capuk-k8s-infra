@@ -1,6 +1,6 @@
 # Kubernetes Maintenance Guide
 
-Complete maintenance guide for managing your LKE cluster, Plex, and WordPress deployments.
+Complete maintenance guide for managing your LKE cluster, Plex, AudioBookShelf, and WordPress deployments.
 
 ## Manual Deployment Upgrades
 
@@ -38,6 +38,7 @@ envsubst < lke-values.yaml | helm upgrade multi-service ./charts/multi-service \
 
 # 3. Monitor the rollout
 kubectl rollout status deployment/multi-service-plex -n multi-service
+kubectl rollout status deployment/multi-service-audiobookshelf -n multi-service
 kubectl rollout status deployment/multi-service-wordpress-site1 -n multi-service
 kubectl rollout status deployment/multi-service-wordpress-site2 -n multi-service
 kubectl rollout status deployment/multi-service-wordpress-site3 -n multi-service

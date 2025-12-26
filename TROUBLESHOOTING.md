@@ -1,6 +1,6 @@
 # Troubleshooting Guide
 
-Comprehensive troubleshooting guide for Plex and WordPress deployments on Linode LKE.
+Comprehensive troubleshooting guide for Plex, AudioBookShelf, and WordPress deployments on Linode LKE.
 
 ## General Diagnostics
 
@@ -357,6 +357,75 @@ containers:
 volumes:
 - name: media-data
   emptyDir: {}                 # Shared between containers
+```
+
+## AudioBookShelf Troubleshooting
+
+### Common AudioBookShelf Issues
+
+#### AudioBookShelf Pod Stuck in Init State
+**Problem**: AudioBookShelf pod shows `Init:0/1` and won't progress
+**Symptoms**:
+```bash
+multi-service-audiobookshelf-6687f85f4c-77j6h   0/2     Init:0/1   0          2m
+```
+
+**Common Causes**:
+1. **Volume attachment conflicts**: Old pods holding PVCs
+2. **rclone init container failing**: Object storage connection issues
+3. **Security context problems**: FUSE permissions
+
+**Diagnosis**:
+```bash
+# Check pod events
+kubectl describe pod <audiobookshelf-pod> -n multi-service
+
+# Check init container logs
+kubectl logs <audiobookshelf-pod> -c rclone-mount -n multi-service
+
+# Check for volume conflicts
+kubectl get pods -n multi-service -l app.kubernetes.io/component=audiobookshelf
+```
+
+**Solutions**:
+```bash
+# Remove old conflicting pods
+kubectl delete pod <old-pod-name> -n multi-service
+
+# Scale down old replicasets
+kubectl scale replicaset <old-replicaset> --replicas=0 -n multi-service
+```
+
+#### AudioBookShelf rclone Mount Issues
+**Problem**: rclone sidecar container fails to mount object storage
+**Real Example**: Container shows "Transport endpoint is not connected"
+
+**Diagnosis**:
+```bash
+# Check rclone container logs
+kubectl logs <audiobookshelf-pod> -c rclone -n multi-service
+
+# Test rclone connection
+kubectl exec -it <audiobookshelf-pod> -c rclone -n multi-service -- rclone ls linode:capuk-media/Books
+```
+
+**Solutions**:
+- Ensure same rclone configuration as Plex
+- Verify `/data` mount permissions
+- Check security context allows FUSE operations
+
+#### AudioBookShelf Library Not Finding Files
+**Problem**: Library scan shows no audiobooks despite files in object storage
+**Cause**: Incorrect library paths or file organization
+
+**Solutions**:
+1. **Check mount path**: Files should be at `/data/Books/Audio`
+2. **Verify file structure**: AudioBookShelf expects author/book folder structure
+3. **Check permissions**: Files must be readable by AudioBookShelf user (uid 99)
+
+```bash
+# Check files in container
+kubectl exec -it <audiobookshelf-pod> -c audiobookshelf -n multi-service -- ls -la /data/Books/Audio
 ```
 
 ## WordPress Troubleshooting

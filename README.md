@@ -4,11 +4,12 @@ A production-ready Helm chart for deploying Plex Media Server and WordPress site
 
 ## What's Deployed
 
-- **Plex Media Server** with object storage integration
-- **AudioBookShelf** for audiobooks and podcasts
+- **Plex Media Server** with object storage integration (rclone)
+- **AudioBookShelf** with object storage integration (rclone)
 - **3 WordPress Sites** with dedicated MySQL databases
 - **Automatic SSL** certificates via Let's Encrypt
 - **Ingress routing** for multiple domains
+- **Shared object storage** for media files via Linode S3
 
 ## Live Services
 
@@ -135,6 +136,13 @@ kubectl get certificates -n multi-service
 ```bash
 # Plex logs
 kubectl logs deployment/multi-service-plex -n multi-service
+
+# AudioBookShelf logs  
+kubectl logs deployment/multi-service-audiobookshelf -n multi-service
+
+# rclone logs (for media storage)
+kubectl logs deployment/multi-service-plex -c rclone -n multi-service
+kubectl logs deployment/multi-service-audiobookshelf -c rclone -n multi-service
 
 # WordPress logs
 kubectl logs deployment/multi-service-wordpress-site1 -n multi-service
