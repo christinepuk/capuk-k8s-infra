@@ -152,10 +152,10 @@ wordpress:
       pullPolicy: IfNotPresent
     
     auth:
-      rootPassword: "changeme"
+      rootPassword: ""
       database: "wordpress"
       username: "wordpress"
-      password: "wordpress"
+      password: ""
     
     persistence:
       size: 20Gi
