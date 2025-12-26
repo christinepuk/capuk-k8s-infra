@@ -37,9 +37,12 @@ cd capuk-k8s-infra
 # Install prerequisites (ingress-nginx, cert-manager)
 ./scripts/install-prerequisites.sh
 
-# Deploy applications
-helm install multi-service ./charts/multi-service \
-  -f lke-values.yaml \
+# Source environment variables (REQUIRED)
+source .env
+
+# Deploy applications with proper variable substitution
+envsubst < lke-values.yaml | helm install multi-service ./charts/multi-service \
+  -f - \
   --namespace multi-service \
   --create-namespace
 ```

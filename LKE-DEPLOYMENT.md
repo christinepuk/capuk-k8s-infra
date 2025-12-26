@@ -198,11 +198,30 @@ wordpress:
 EOF
 ```
 
+### Configure Environment Variables
+```bash
+# Create your environment file
+cp .env.example .env
+
+# Edit with your actual secrets
+nano .env
+
+# Example .env content:
+export MYSQL_PASSWORD="your_secure_mysql_password"
+export MYSQL_ROOT_PASSWORD="your_secure_root_password"
+export PLEX_CLAIM_TOKEN="claim-xxxxxxxxxxxx"  # From https://plex.tv/claim
+export ACCESS_KEY="your_linode_object_storage_access_key"
+export SECRET_KEY="your_linode_object_storage_secret_key"
+
+# Source the environment (REQUIRED before Helm)
+source .env
+```
+
 ### Deploy the Chart
 ```bash
-# Deploy with LKE-optimized values
-helm install multi-service ./charts/multi-service \
-  -f lke-values.yaml \
+# Deploy with proper variable substitution
+envsubst < lke-values.yaml | helm install multi-service ./charts/multi-service \
+  -f - \
   --namespace multi-service \
   --create-namespace
 

@@ -2,6 +2,104 @@
 
 Complete maintenance guide for managing your LKE cluster, Plex, and WordPress deployments.
 
+## Manual Deployment Upgrades
+
+### Prerequisites
+Ensure you have local access to the cluster and repository:
+```bash
+# Verify kubectl access
+kubectl get pods -n multi-service
+
+# Ensure you're in the project directory
+cd /path/to/capuk-k8s-infra
+
+# Source environment variables (REQUIRED)
+source .env
+
+# Verify critical environment variables are set
+echo "MySQL Password: $MYSQL_PASSWORD"
+echo "Plex Token: $PLEX_CLAIM_TOKEN"
+
+# Check current Helm release status
+helm status multi-service -n multi-service
+```
+
+**Important**: The `lke-values.yaml` file uses environment variable substitution (e.g., `${MYSQL_PASSWORD}`). You must source the `.env` file before running any Helm commands, or the deployment will use empty values for critical configuration like database passwords.
+
+### Standard Helm Upgrade Process
+```bash
+# 1. Update configuration files (if needed)
+# Edit lke-values.yaml or charts/multi-service/values.yaml
+
+# 2. Run the upgrade with proper variable substitution
+envsubst < lke-values.yaml | helm upgrade multi-service ./charts/multi-service \
+  -f - \
+  --namespace multi-service
+
+# 3. Monitor the rollout
+kubectl rollout status deployment/multi-service-plex -n multi-service
+kubectl rollout status deployment/multi-service-wordpress-site1 -n multi-service
+kubectl rollout status deployment/multi-service-wordpress-site2 -n multi-service
+kubectl rollout status deployment/multi-service-wordpress-site3 -n multi-service
+
+# 4. Verify all pods are running
+kubectl get pods -n multi-service
+
+# 5. Test services
+kubectl get ingress -n multi-service
+```
+
+### Configuration-Only Updates (Faster)
+For changes that don't require pod restarts (e.g., ingress, service configs):
+```bash
+# Apply specific template updates
+envsubst < lke-values.yaml | helm upgrade multi-service ./charts/multi-service \
+  -f - \
+  --namespace multi-service \
+  --reuse-values
+
+# Or restart deployments to pick up config changes
+kubectl rollout restart deployment/multi-service-plex -n multi-service
+```
+
+### Upgrade with Secret Updates
+If updating secrets (Plex token, storage credentials):
+```bash
+# 1. Update secrets first
+kubectl create secret generic multi-service-rclone-config \
+  --from-literal=rclone.conf="$(cat rclone.conf)" \
+  --namespace multi-service \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+# 2. Then upgrade Helm chart
+envsubst < lke-values.yaml | helm upgrade multi-service ./charts/multi-service \
+  -f - \
+  --namespace multi-service
+
+# 3. Restart pods to pick up new secrets
+kubectl rollout restart deployment/multi-service-plex -n multi-service
+```
+
+### Rollback if Issues Occur
+```bash
+# Check rollout history
+helm history multi-service -n multi-service
+
+# Rollback to previous version
+helm rollback multi-service <revision-number> -n multi-service
+
+# Or rollback to previous revision
+helm rollback multi-service -n multi-service
+
+# Monitor rollback
+kubectl get pods -n multi-service -w
+```
+
+### Common Upgrade Issues and Solutions
+- **Volume attachment conflicts**: See [TROUBLESHOOTING.md](TROUBLESHOOTING.md#volume-attachment-and-deployment-issues)
+- **Resource constraints**: Check cluster capacity before upgrading
+- **PVC size changes**: These require PVC deletion/recreation (see troubleshooting guide)
+
 ## Cluster Scaling
 
 ### Manual Cluster Scaling

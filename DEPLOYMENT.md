@@ -61,15 +61,28 @@ Edit `production-values.yaml` with your specific configuration:
 - Adjust storage sizes based on your needs
 - Configure resource limits for your cluster capacity
 
-### Step 2: Deploy the Chart
+### Step 2: Configure Environment Variables
 ```bash
-helm install multi-service ./charts/multi-service \
-  -f production-values.yaml \
+# Create environment file from template
+cp .env.example .env
+
+# Edit .env with your actual values
+nano .env
+
+# Source the environment variables (REQUIRED)
+source .env
+```
+
+### Step 3: Deploy the Chart
+```bash
+# Deploy with proper variable substitution
+envsubst < production-values.yaml | helm install multi-service ./charts/multi-service \
+  -f - \
   --namespace multi-service \
   --create-namespace
 ```
 
-### Step 3: Verify Deployment
+### Step 4: Verify Deployment
 ```bash
 # Check all pods are running
 kubectl get pods -n multi-service

@@ -80,5 +80,8 @@ wordpress:
     persistence:
       size: 50Gi
       storageClass: "linode-block-storage-retain"
-    rootPassword: "${MYSQL_ROOT_PASSWORD}"
-    password: "${MYSQL_PASSWORD}"
+    auth:
+      rootPassword: "${MYSQL_ROOT_PASSWORD}"
+      database: "wordpress"
+      username: "wordpress"
+      password: "${MYSQL_PASSWORD}"

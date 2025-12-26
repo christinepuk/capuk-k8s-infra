@@ -34,6 +34,59 @@ kubectl get events -n multi-service --sort-by='.lastTimestamp'
 kubectl get pods -n multi-service -w
 ```
 
+## Volume Attachment and Deployment Issues
+
+### Multiple Pods Stuck in ContainerCreating/Init States
+**Problem**: After deployment updates, you see duplicate pods with some stuck in `ContainerCreating` or `Init:0/1` states
+**Symptoms**:
+```bash
+NAME                                             READY   STATUS              RESTARTS   AGE
+multi-service-mysql-site1-54bddcf555-7gkzx       0/1     ContainerCreating   0          27m
+multi-service-mysql-site1-59d4fc7949-k85df       1/1     Running             0          112m
+multi-service-plex-d66f56bd-mjv5q                0/2     Init:0/1            0          27m
+multi-service-plex-5dcb4c7c9c-vknlg              2/2     Running             0          112m
+```
+
+**Root Cause**: Linode block storage volumes (RWO - ReadWriteOnce) can only be attached to one pod at a time. Multiple deployment revisions create new ReplicaSets that try to use the same PVCs.
+
+**Diagnosis**:
+```bash
+# Check for volume attachment errors
+kubectl describe pod <stuck-pod-name> -n multi-service
+
+# Look for this error in events:
+# Multi-Attach error for volume "pvc-xxxxx" Volume is already used by pod(s) <existing-pod>
+
+# Check ReplicaSets - you'll see multiple with same PVC references
+kubectl get rs -n multi-service -o wide
+
+# Check PVC status
+kubectl get pvc -n multi-service
+```
+
+**Solution**:
+```bash
+# Step 1: Delete stuck pods
+kubectl delete pod <stuck-pod-name> -n multi-service --force
+
+# Step 2: Scale down problematic ReplicaSets
+kubectl scale rs <problematic-replicaset> --replicas=0 -n multi-service
+
+# Step 3: Clean up unused ReplicaSets
+kubectl delete rs $(kubectl get rs -n multi-service -o jsonpath='{.items[?(@.status.replicas==0)].metadata.name}') -n multi-service
+
+# Step 4: Roll back deployments to working versions if needed
+kubectl rollout undo deployment/<deployment-name> -n multi-service
+
+# Step 5: Verify all pods are running
+kubectl get pods -n multi-service
+```
+
+**Prevention**:
+- Use `kubectl rollout status deployment/<name> -n multi-service` to monitor deployments
+- Consider `kubectl rollout restart` instead of multiple `helm upgrade` commands for config changes
+- Always check `kubectl get pods -n multi-service` before deploying updates
+
 ## Plex Troubleshooting
 
 ### Common Plex Issues
@@ -325,16 +378,41 @@ kubectl exec -it <mysql-pod-name> -n multi-service -- mysql -u wordpress -p
 - **DNS Resolution**: Verify service names resolve correctly
 
 #### WordPress Database Connection Errors
+**Problem**: WordPress shows "Error establishing a database connection"
+**Symptoms**: All WordPress sites return database connection errors despite MySQL pods running
+
+**Root Cause**: Often caused by missing environment variable substitution in deployment configuration.
+
+**Diagnosis**:
 ```bash
 # Check MySQL logs
 kubectl logs <mysql-pod-name> -n multi-service
+
+# Check WordPress environment variables for unresolved placeholders
+kubectl describe pod <wordpress-pod-name> -n multi-service | grep -A 8 "Environment:"
+# Look for ${MYSQL_PASSWORD} instead of actual password value
 
 # Test database connection
 kubectl exec -it <wordpress-pod-name> -n multi-service -- wp db check
 ```
 
 **Solutions:**
+```bash
+# 1. Ensure .env file exists and is sourced
+source .env
+
+# 2. Verify environment variables are set
+echo "MySQL Password: $MYSQL_PASSWORD"
+
+# 3. Deploy with proper variable substitution
+envsubst < lke-values.yaml | helm upgrade multi-service ./charts/multi-service \\\n  -f - \\\n  --namespace multi-service
+
+# 4. Wait for pods to restart with correct credentials
+kubectl rollout status deployment/multi-service-wordpress-site1 -n multi-service
+```
+
 - **Wrong Credentials**: Verify MySQL auth settings in values file
+- **Missing Variable Substitution**: Always use `envsubst` for files with `${VARIABLE}` placeholders
 - **Database Not Created**: Check if database initialization completed
 - **Host Resolution**: Verify MySQL service name and port
 
