@@ -1,3 +1,58 @@
-lke-values.yaml
+# LKE kubeconfig (contains cluster credentials)
 capuk-k8s-infra-kubeconfig.yaml
+*.kubeconfig
+*kubeconfig*.yaml
 
+# Local environment files (may contain secrets)
+.env
+.env.local
+.env.*.local
+*.env
+
+# rclone configuration files (contain storage credentials)
+rclone.conf
+rclone.conf.local
+*.rclone.conf
+
+# Kubernetes secret files
+secrets/
+*.secret.yaml
+*-secret.yaml
+
+# Helm values with secrets
+*-secrets.yaml
+values-secrets.yaml
+production-secrets.yaml
+staging-secrets.yaml
+
+# Backup files that might contain secrets
+*.backup
+*.bak
+
+# Local testing files
+test-values.yaml
+debug-values.yaml
+
+# Certificate and key files
+*.key
+*.crt
+*.pem
+*.p12
+*.pfx
+
+# Database dumps (may contain sensitive data)
+*.sql
+*.dump
+
+# Temporary files
+*.tmp
+*.temp
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db

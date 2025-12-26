@@ -1,0 +1,77 @@
+# LKE-optimized configuration for christinepuk.net
+global:
+  storageClass: "linode-block-storage-retain"
+  domain: "christinepuk.net"
+  timezone: "UTC"
+
+# Plex configuration
+plex:
+  enabled: true
+  claimToken: ""  # Will be injected by GitHub Actions from PLEX_CLAIM_TOKEN secret
+  
+  # Enable rclone for object storage
+  rclone:
+    enabled: true
+    remoteName: "linode"
+    remotePath: "capuk-media"                # Bucket name
+    type: "s3"
+    
+    # Configuration will be injected by GitHub Actions from RCLONE_CONFIG secret
+    # Do not add credentials here - they will be sourced from GitHub Secrets
+    
+    # Optimized VFS settings for media streaming
+    vfsCacheMode: "writes"
+    vfsCacheMaxSize: "2G"                    # Increase for better performance
+    vfsCacheMaxAge: "24h"                    # Cache files longer for media
+    bufferSize: "128M"                       # Large buffer for streaming
+    dirCacheTime: "15m"                      # Cache directory listings
+    timeout: "10m"                           # Longer timeout for large files
+    contimeout: "60s"
+    
+    extraArgs:
+      - "--transfers=4"                      # Parallel transfers
+      - "--checkers=8"                       # Parallel file checks
+      - "--use-mmap"                         # Memory mapping for performance
+  
+  persistence:
+    config:
+      size: 50Gi
+      storageClass: "linode-block-storage-retain"
+    media:
+      enabled: false                         # Disable local media storage when using rclone
+  resources:
+    requests:
+      memory: 1Gi                            # Reasonable for cluster capacity
+      cpu: 300m                              # Fits within node capacity
+    limits:
+      memory: 2Gi                            # Still plenty for Plex
+      cpu: 800m                              # Max we can get on 1-core nodes
+  ingress:
+    host: "tv.christinepuk.net"
+
+# WordPress sites
+wordpress:
+  sites:
+    site1:
+      enabled: true
+      name: "blog"
+      host: "blog.christinepuk.net"
+    site2:
+      enabled: true
+      name: "djpup"
+      host: "djpup.christinepuk.net"
+    site3:
+      enabled: true
+      name: "surf"
+      host: "surf.christinepuk.net"
+  
+  persistence:
+    size: 20Gi
+    storageClass: "linode-block-storage-retain"
+  
+  mysql:
+    persistence:
+      size: 50Gi
+      storageClass: "linode-block-storage-retain"
+    # Passwords will be injected by GitHub Actions from secrets
+    # MYSQL_ROOT_PASSWORD and MYSQL_PASSWORD secrets
