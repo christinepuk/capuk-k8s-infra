@@ -1,0 +1,228 @@
+name: Deploy to LKE
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'charts/**'
+      - 'lke-values.yaml'
+      - '.github/workflows/**'
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - staging
+
+env:
+  HELM_VERSION: "3.13.3"
+  KUBECTL_VERSION: "1.29.0"
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: ${{ env.HELM_VERSION }}
+
+      - name: Validate Helm chart
+        run: |
+          helm lint charts/multi-service
+          helm template test-release charts/multi-service \
+            --values lke-values.yaml \
+            --dry-run
+
+      - name: Check for secrets in code
+        run: |
+          # Ensure no hardcoded secrets
+          if grep -r "claim-" charts/ --exclude-dir=.git || \
+             grep -r "password:" charts/ --exclude-dir=.git || \
+             grep -r "secret" charts/ --exclude-dir=.git | grep -v "secretName\|Secret\|secret.yaml"; then
+            echo "❌ Potential hardcoded secrets found!"
+            exit 1
+          fi
+          echo "✅ No hardcoded secrets detected"
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: validate
+    if: github.ref == 'refs/heads/main'
+    environment: 
+      name: ${{ github.event.inputs.environment || 'production' }}
+      
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: ${{ env.KUBECTL_VERSION }}
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: ${{ env.HELM_VERSION }}
+
+      - name: Configure kubectl
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG }}" | base64 -d > ~/.kube/config
+          chmod 600 ~/.kube/config
+          
+          # Verify connection
+          kubectl cluster-info
+          kubectl get nodes
+
+      - name: Create namespace if not exists
+        run: |
+          kubectl create namespace multi-service --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Create/Update secrets
+        run: |
+          # Create rclone secret
+          kubectl create secret generic rclone-secret \
+            --from-literal=rclone.conf="${{ secrets.RCLONE_CONFIG }}" \
+            --namespace=multi-service \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+          # Create MySQL root password secret
+          kubectl create secret generic mysql-root-secret \
+            --from-literal=mysql-root-password="${{ secrets.MYSQL_ROOT_PASSWORD }}" \
+            --namespace=multi-service \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+          # Create WordPress database secrets
+          for site in site1 site2 site3; do
+            kubectl create secret generic mysql-${site}-secret \
+              --from-literal=mysql-password="${{ secrets.MYSQL_PASSWORD }}" \
+              --namespace=multi-service \
+              --dry-run=client -o yaml | kubectl apply -f -
+          done
+
+      - name: Prepare values file
+        run: |
+          # Create values file with secrets injected
+          cat > deployment-values.yaml << EOF
+          global:
+            storageClass: "linode-block-storage-retain"
+            domain: "christinepuk.net"
+
+          plex:
+            enabled: true
+            claimToken: "${{ secrets.PLEX_CLAIM_TOKEN }}"
+            persistence:
+              config:
+                size: 50Gi
+                storageClass: "linode-block-storage-retain"
+              media:
+                enabled: false  # Using rclone object storage
+            resources:
+              requests:
+                cpu: 300m
+                memory: 1Gi
+              limits:
+                cpu: 800m
+                memory: 2Gi
+            rclone:
+              enabled: true
+              secretName: rclone-secret
+            ingress:
+              enabled: true
+              host: "tv.christinepuk.net"
+              annotations:
+                cert-manager.io/cluster-issuer: "letsencrypt-prod"
+                nginx.ingress.kubernetes.io/proxy-body-size: "0"
+              tls:
+                enabled: true
+
+          wordpress:
+            sites:
+              site1:
+                enabled: true
+                name: "blog"
+                host: "blog.christinepuk.net"
+                mysql:
+                  auth:
+                    existingSecret: "mysql-site1-secret"
+              site2:
+                enabled: true
+                name: "djpup"
+                host: "djpup.christinepuk.net"
+                mysql:
+                  auth:
+                    existingSecret: "mysql-site2-secret"
+              site3:
+                enabled: true
+                name: "surf"
+                host: "surf.christinepuk.net"
+                mysql:
+                  auth:
+                    existingSecret: "mysql-site3-secret"
+            
+            mysql:
+              auth:
+                existingSecret: "mysql-root-secret"
+
+          ingress:
+            className: "nginx"
+            annotations:
+              cert-manager.io/cluster-issuer: "letsencrypt-prod"
+
+          certManager:
+            enabled: true
+            issuer:
+              email: "${{ secrets.CERT_MANAGER_EMAIL }}"
+          EOF
+
+      - name: Deploy with Helm
+        run: |
+          helm upgrade multi-service ./charts/multi-service \
+            --values deployment-values.yaml \
+            --namespace multi-service \
+            --install \
+            --wait \
+            --timeout 10m \
+            --atomic
+
+      - name: Verify deployment
+        run: |
+          # Wait for pods to be ready
+          kubectl wait --for=condition=ready pod \
+            --selector=app.kubernetes.io/instance=multi-service \
+            --namespace=multi-service \
+            --timeout=300s
+
+          # Check deployment status
+          kubectl get pods -n multi-service
+          kubectl get ingress -n multi-service
+          kubectl get certificates -n multi-service
+
+      - name: Test endpoints
+        run: |
+          # Test ingress endpoints
+          echo "Testing endpoints..."
+          
+          # Get LoadBalancer IP
+          LB_IP=$(kubectl get svc -n ingress-nginx ingress-nginx-controller -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+          echo "LoadBalancer IP: $LB_IP"
+          
+          # Test endpoints
+          curl -I --connect-timeout 10 https://tv.christinepuk.net || echo "Plex endpoint not ready yet"
+          curl -I --connect-timeout 10 https://blog.christinepuk.net || echo "Blog endpoint not ready yet"
+
+      - name: Cleanup temporary files
+        if: always()
+        run: |
+          rm -f deployment-values.yaml ~/.kube/config

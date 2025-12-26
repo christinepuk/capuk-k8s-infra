@@ -1,0 +1,144 @@
+name: Cleanup Old Resources
+
+on:
+  schedule:
+    - cron: '0 3 * * 0'  # Sundays at 3 AM UTC
+  workflow_dispatch:
+    inputs:
+      cleanup_type:
+        description: 'Type of cleanup to perform'
+        required: true
+        default: 'pods'
+        type: choice
+        options:
+          - pods
+          - volumes
+          - images
+          - all
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    environment: production
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: '1.29.0'
+
+      - name: Configure kubectl
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG }}" | base64 -d > ~/.kube/config
+          chmod 600 ~/.kube/config
+          kubectl cluster-info
+
+      - name: Cleanup completed pods
+        if: ${{ github.event.inputs.cleanup_type == 'pods' || github.event.inputs.cleanup_type == 'all' }}
+        run: |
+          echo "🧹 Cleaning up completed/failed pods..."
+          
+          # Remove completed pods
+          kubectl delete pods --field-selector=status.phase=Succeeded -n multi-service --ignore-not-found=true
+          
+          # Remove failed pods
+          kubectl delete pods --field-selector=status.phase=Failed -n multi-service --ignore-not-found=true
+          
+          # Remove old replica sets with 0 replicas
+          kubectl get replicasets -n multi-service -o jsonpath='{.items[?(@.status.replicas==0)].metadata.name}' | \
+            xargs -r kubectl delete replicaset -n multi-service
+          
+          echo "✅ Pod cleanup completed"
+
+      - name: Cleanup unused volumes
+        if: ${{ github.event.inputs.cleanup_type == 'volumes' || github.event.inputs.cleanup_type == 'all' }}
+        run: |
+          echo "🧹 Checking for unused PVCs..."
+          
+          # List PVCs that are not mounted by any pod
+          kubectl get pvc -n multi-service -o custom-columns=NAME:.metadata.name,STATUS:.status.phase,USED:.status.volumeMode --no-headers | \
+            while read name status used; do
+              if [ "$status" = "Bound" ]; then
+                # Check if PVC is actually used by any pod
+                if ! kubectl get pods -n multi-service -o yaml | grep -q "claimName: $name"; then
+                  echo "⚠️  Unused PVC found: $name"
+                  # Uncomment the next line to actually delete (be careful!)
+                  # kubectl delete pvc "$name" -n multi-service
+                fi
+              fi
+            done
+          
+          echo "✅ Volume cleanup check completed"
+
+      - name: Cleanup container images
+        if: ${{ github.event.inputs.cleanup_type == 'images' || github.event.inputs.cleanup_type == 'all' }}
+        run: |
+          echo "🧹 Cleaning up unused container images on nodes..."
+          
+          # Get all nodes
+          kubectl get nodes -o jsonpath='{.items[*].metadata.name}' | tr ' ' '\n' | while read node; do
+            echo "Cleaning images on node: $node"
+            
+            # Create a job to clean images on each node
+            kubectl create job image-cleanup-$RANDOM --image=alpine:latest \
+              --restart=Never \
+              --overrides="{
+                \"spec\": {
+                  \"template\": {
+                    \"spec\": {
+                      \"nodeSelector\": {\"kubernetes.io/hostname\": \"$node\"},
+                      \"hostPID\": true,
+                      \"hostNetwork\": true,
+                      \"containers\": [{
+                        \"name\": \"cleanup\",
+                        \"image\": \"alpine:latest\",
+                        \"command\": [\"/bin/sh\"],
+                        \"args\": [\"-c\", \"echo 'Image cleanup would run here'\"],
+                        \"securityContext\": {\"privileged\": true}
+                      }]
+                    }
+                  }
+                }
+              }" || echo "Failed to create cleanup job for $node"
+          done
+          
+          echo "✅ Image cleanup jobs created"
+
+      - name: Generate cleanup report
+        run: |
+          echo "📊 Generating cleanup report..."
+          
+          # Current resource usage
+          echo "## Current Resource Usage" > cleanup-report.md
+          echo "Generated on: $(date)" >> cleanup-report.md
+          echo "" >> cleanup-report.md
+          
+          echo "### Pods" >> cleanup-report.md
+          kubectl get pods -n multi-service >> cleanup-report.md
+          echo "" >> cleanup-report.md
+          
+          echo "### PVCs" >> cleanup-report.md  
+          kubectl get pvc -n multi-service >> cleanup-report.md
+          echo "" >> cleanup-report.md
+          
+          echo "### Storage Usage" >> cleanup-report.md
+          kubectl top nodes >> cleanup-report.md || echo "Metrics not available" >> cleanup-report.md
+          
+          # Display report
+          cat cleanup-report.md
+
+      - name: Notify completion
+        if: always()
+        run: |
+          echo "🎉 Cleanup workflow completed"
+          echo "Type: ${{ github.event.inputs.cleanup_type || 'scheduled' }}"
+          echo "Status: ${{ job.status }}"
+
+      - name: Cleanup temporary files
+        if: always()
+        run: |
+          rm -f cleanup-report.md ~/.kube/config
