@@ -3,6 +3,11 @@ capuk-k8s-infra-kubeconfig.yaml
 *.kubeconfig
 *kubeconfig*.yaml
 
+# MySQL secret backups (temporary files)
+mysql-secrets-backup.txt
+*secrets-backup*
+secrets-backup.txt
+
 # Local environment files (may contain secrets)
 .env
 .env.local

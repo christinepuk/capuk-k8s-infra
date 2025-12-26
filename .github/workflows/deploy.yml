@@ -91,11 +91,24 @@ jobs:
 
       - name: Create/Update secrets
         run: |
-          # Create rclone secret
+          # Create rclone secret with environment variables
+          cat > rclone.conf << EOF
+          [linode]
+          type = s3
+          provider = Other
+          env_auth = false
+          access_key_id = ${{ secrets.ACCESS_KEY }}
+          secret_access_key = ${{ secrets.SECRET_KEY }}
+          region = us-iad-1
+          endpoint = us-iad-1.linodeobjects.com
+          EOF
+          
           kubectl create secret generic rclone-secret \
-            --from-literal=rclone.conf="${{ secrets.RCLONE_CONFIG }}" \
+            --from-file=rclone.conf=rclone.conf \
             --namespace=multi-service \
             --dry-run=client -o yaml | kubectl apply -f -
+          
+          rm -f rclone.conf
 
           # Create MySQL root password secret
           kubectl create secret generic mysql-root-secret \
@@ -111,53 +124,19 @@ jobs:
               --dry-run=client -o yaml | kubectl apply -f -
           done
 
-      - name: Prepare values file
+      - name: Prepare values file with environment substitution
+        env:
+          PLEX_CLAIM_TOKEN: ${{ secrets.PLEX_CLAIM_TOKEN }}
+          MYSQL_ROOT_PASSWORD: ${{ secrets.MYSQL_ROOT_PASSWORD }}
+          MYSQL_PASSWORD: ${{ secrets.MYSQL_PASSWORD }}
+          ACCESS_KEY: ${{ secrets.ACCESS_KEY }}
+          SECRET_KEY: ${{ secrets.SECRET_KEY }}
+          CERT_MANAGER_EMAIL: ${{ secrets.CERT_MANAGER_EMAIL }}
         run: |
-          # Create values file with secrets injected
-          cat > deployment-values.yaml << EOF
-          global:
-            storageClass: "linode-block-storage-retain"
-            domain: "christinepuk.net"
-
-          plex:
-            enabled: true
-            claimToken: "${{ secrets.PLEX_CLAIM_TOKEN }}"
-            persistence:
-              config:
-                size: 50Gi
-                storageClass: "linode-block-storage-retain"
-              media:
-                enabled: false  # Using rclone object storage
-            resources:
-              requests:
-                cpu: 300m
-                memory: 1Gi
-              limits:
-                cpu: 800m
-                memory: 2Gi
-            rclone:
-              enabled: true
-              secretName: rclone-secret
-            ingress:
-              enabled: true
-              host: "tv.christinepuk.net"
-              annotations:
-                cert-manager.io/cluster-issuer: "letsencrypt-prod"
-                nginx.ingress.kubernetes.io/proxy-body-size: "0"
-              tls:
-                enabled: true
-
-          wordpress:
-            sites:
-              site1:
-                enabled: true
-                name: "blog"
-                host: "blog.christinepuk.net"
-                mysql:
-                  auth:
-                    existingSecret: "mysql-site1-secret"
-              site2:
-                enabled: true
+          # Substitute environment variables in lke-values.yaml
+          envsubst < lke-values.yaml > deployment-values.yaml
+          
+          echo "Generated deployment-values.yaml with environment variables substituted"
                 name: "djpup"
                 host: "djpup.christinepuk.net"
                 mysql:

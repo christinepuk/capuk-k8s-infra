@@ -7,7 +7,7 @@ global:
 # Plex configuration
 plex:
   enabled: true
-  claimToken: ""  # Will be injected by GitHub Actions from PLEX_CLAIM_TOKEN secret
+  claimToken: "${PLEX_CLAIM_TOKEN}"
   
   # Enable rclone for object storage
   rclone:
@@ -16,8 +16,15 @@ plex:
     remotePath: "capuk-media"                # Bucket name
     type: "s3"
     
-    # Configuration will be injected by GitHub Actions from RCLONE_CONFIG secret
-    # Do not add credentials here - they will be sourced from GitHub Secrets
+    # rclone configuration for linode object storage
+    config:
+      type: "s3"
+      provider: "Other"
+      env_auth: false
+      access_key_id: "${ACCESS_KEY}"
+      secret_access_key: "${SECRET_KEY}"
+      region: "us-iad-1"
+      endpoint: "us-iad-1.linodeobjects.com"
     
     # Optimized VFS settings for media streaming
     vfsCacheMode: "writes"
@@ -73,5 +80,5 @@ wordpress:
     persistence:
       size: 50Gi
       storageClass: "linode-block-storage-retain"
-    # Passwords will be injected by GitHub Actions from secrets
-    # MYSQL_ROOT_PASSWORD and MYSQL_PASSWORD secrets
+    rootPassword: "${MYSQL_ROOT_PASSWORD}"
+    password: "${MYSQL_PASSWORD}"

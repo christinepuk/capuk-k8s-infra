@@ -338,6 +338,48 @@ kubectl exec -it <wordpress-pod-name> -n multi-service -- wp db check
 - **Database Not Created**: Check if database initialization completed
 - **Host Resolution**: Verify MySQL service name and port
 
+#### Emergency Database Access
+```bash
+# Root access to MySQL (for emergency administration)
+kubectl exec -it deployment/multi-service-mysql-site1 -n multi-service -- \
+  mysql -u root -p"YOUR_ROOT_PASSWORD"
+
+# WordPress database access (for debugging application issues)
+kubectl exec -it deployment/multi-service-mysql-site1 -n multi-service -- \
+  mysql -u wordpress -p"YOUR_WORDPRESS_PASSWORD" wordpress
+
+# Check database status
+kubectl exec -it deployment/multi-service-mysql-site1 -n multi-service -- \
+  mysql -u root -p"YOUR_ROOT_PASSWORD" -e "SHOW DATABASES;"
+
+# Backup specific WordPress database
+kubectl exec deployment/multi-service-mysql-site1 -n multi-service -- \
+  mysqldump -u root -p"YOUR_ROOT_PASSWORD" wordpress > site1-backup.sql
+
+# Restore database from backup
+kubectl exec -i deployment/multi-service-mysql-site1 -n multi-service -- \
+  mysql -u root -p"YOUR_ROOT_PASSWORD" wordpress < site1-backup.sql
+```
+
+**Password Sources:**
+- Root password: From `MYSQL_ROOT_PASSWORD` GitHub Secret
+- WordPress password: From `MYSQL_PASSWORD` GitHub Secret  
+- Local backup: Check `mysql-secrets-backup.txt` (if available)
+
+#### WordPress Database Reset
+```bash
+# Reset WordPress database (DESTRUCTIVE - backup first!)
+kubectl exec -it deployment/multi-service-mysql-site1 -n multi-service -- \
+  mysql -u root -p"YOUR_ROOT_PASSWORD" -e "
+    DROP DATABASE wordpress;
+    CREATE DATABASE wordpress;
+    GRANT ALL PRIVILEGES ON wordpress.* TO 'wordpress'@'%';
+    FLUSH PRIVILEGES;"
+
+# Restart WordPress pod to reinitialize
+kubectl delete pod -l app.kubernetes.io/name=wordpress,app.kubernetes.io/instance=site1 -n multi-service
+```
+
 #### WordPress Site Loading Issues
 ```bash
 # Check WordPress logs
