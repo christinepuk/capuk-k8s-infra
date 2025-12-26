@@ -46,9 +46,12 @@ jobs:
       - name: Check for secrets in code
         run: |
           # Ensure no hardcoded secrets
-          if grep -r "claim-" charts/ --exclude-dir=.git || \
-             grep -r "password:" charts/ --exclude-dir=.git || \
-             grep -r "secret" charts/ --exclude-dir=.git | grep -v "secretName\|Secret\|secret.yaml"; then
+          # Look for claim tokens (but exclude placeholders)
+          if grep -r "claim-" charts/ --exclude-dir=.git | grep -v "\${" || \
+             grep -r 'password: "[^"${]' charts/ --exclude-dir=.git || \
+             grep -r "password: '[^'${]" charts/ --exclude-dir=.git || \
+             grep -r "rootPassword: \"[^\"$]" charts/ --exclude-dir=.git || \
+             grep -r "secret" charts/ --exclude-dir=.git | grep -v "secretName\|Secret\|secret.yaml\|secret_access_key: \"\"\|secret.*: \"\""; then
             echo "❌ Potential hardcoded secrets found!"
             exit 1
           fi
@@ -137,33 +140,6 @@ jobs:
           envsubst < lke-values.yaml > deployment-values.yaml
           
           echo "Generated deployment-values.yaml with environment variables substituted"
-                name: "djpup"
-                host: "djpup.christinepuk.net"
-                mysql:
-                  auth:
-                    existingSecret: "mysql-site2-secret"
-              site3:
-                enabled: true
-                name: "surf"
-                host: "surf.christinepuk.net"
-                mysql:
-                  auth:
-                    existingSecret: "mysql-site3-secret"
-            
-            mysql:
-              auth:
-                existingSecret: "mysql-root-secret"
-
-          ingress:
-            className: "nginx"
-            annotations:
-              cert-manager.io/cluster-issuer: "letsencrypt-prod"
-
-          certManager:
-            enabled: true
-            issuer:
-              email: "${{ secrets.CERT_MANAGER_EMAIL }}"
-          EOF
 
       - name: Deploy with Helm
         run: |
