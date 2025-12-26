@@ -1,0 +1,75 @@
+{{- if .Values.plex.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "multi-service.fullname" . }}-plex
+  labels:
+    {{- include "multi-service.labels" . | nindent 4 }}
+    app.kubernetes.io/component: plex
+  {{- with .Values.plex.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if .Values.plex.ingress.className }}
+  ingressClassName: {{ .Values.plex.ingress.className }}
+  {{- end }}
+  {{- if .Values.plex.ingress.tls.enabled }}
+  tls:
+  - hosts:
+    - {{ .Values.plex.ingress.host | quote }}
+    secretName: {{ .Values.plex.ingress.tls.secretName }}
+  {{- end }}
+  rules:
+  - host: {{ .Values.plex.ingress.host | quote }}
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: {{ include "multi-service.fullname" . }}-plex
+            port:
+              number: {{ .Values.plex.service.port }}
+{{- end }}
+
+{{- if .Values.wordpress.ingress.enabled }}
+{{- range $siteName, $siteConfig := .Values.wordpress.sites }}
+{{- if $siteConfig.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "multi-service.fullname" $ }}-wordpress-{{ $siteName }}
+  labels:
+    {{- include "multi-service.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: wordpress
+    app.kubernetes.io/instance: {{ $siteName }}
+  {{- with $.Values.wordpress.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if $.Values.wordpress.ingress.className }}
+  ingressClassName: {{ $.Values.wordpress.ingress.className }}
+  {{- end }}
+  {{- if $.Values.wordpress.ingress.tls.enabled }}
+  tls:
+  - hosts:
+    - {{ $siteConfig.host | quote }}
+    secretName: {{ $siteName }}-tls
+  {{- end }}
+  rules:
+  - host: {{ $siteConfig.host | quote }}
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: {{ include "multi-service.fullname" $ }}-wordpress-{{ $siteName }}
+            port:
+              number: {{ $.Values.wordpress.service.port }}
+{{- end }}
+{{- end }}
+{{- end }}

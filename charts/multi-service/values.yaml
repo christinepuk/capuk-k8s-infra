@@ -1,0 +1,183 @@
+# Default values for multi-service chart
+# This is a YAML-formatted file.
+
+# Global configuration
+global:
+  storageClass: "default"
+  timezone: "UTC"
+  domain: "example.com"
+
+# Plex Media Server configuration
+plex:
+  enabled: true
+  image:
+    repository: plexinc/pms-docker
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  
+  # Plex Claim Token (get from https://plex.tv/claim)
+  claimToken: ""
+  
+  # rclone configuration for object storage
+  rclone:
+    enabled: false
+    image:
+      repository: rclone/rclone
+      tag: "latest"
+      pullPolicy: IfNotPresent
+    
+    # Remote configuration
+    remoteName: "linode"            # Name for your remote
+    remotePath: "capuk-media"       # Your bucket name
+    type: "s3"                      # Storage type: s3, b2, gcs, etc.
+    
+    # Configuration parameters (key-value pairs)
+    config:
+      provider: "Other"             # Use "Other" for Linode Object Storage
+      env_auth: "false"             # Disable environment auth
+      access_key_id: ""             # Your access key
+      secret_access_key: ""         # Your secret key  
+      endpoint: ""                  # e.g., "us-iad-1.linodeobjects.com"
+      region: "us-iad-1"            # Region
+      # chunk_size: "64M"
+      # upload_cutoff: "200M"
+    
+    # VFS (Virtual File System) cache settings
+    vfsCacheMode: "writes"      # off, minimal, writes, full
+    vfsCacheMaxSize: "1G"       # Maximum cache size
+    vfsCacheMaxAge: "1h"        # Maximum age of cache entries
+    bufferSize: "64M"           # Buffer size for reading
+    dirCacheTime: "5m"          # Directory cache time
+    timeout: "1h"               # Connection timeout
+    contimeout: "60s"           # Connection timeout for initial connection
+    
+    # Extra rclone arguments
+    extraArgs: []
+      # - "--transfers=4"
+      # - "--checkers=8"
+  
+  persistence:
+    config:
+      enabled: true
+      size: 20Gi
+      storageClass: ""
+      accessMode: ReadWriteOnce
+    media:
+      enabled: true
+      size: 500Gi
+      storageClass: ""
+      accessMode: ReadWriteOnce
+  
+  resources:
+    limits:
+      memory: 4Gi
+      cpu: 2000m
+      # Uncomment for GPU transcoding
+      # nvidia.com/gpu: 1
+    requests:
+      memory: 2Gi
+      cpu: 1000m
+  
+  service:
+    type: ClusterIP
+    port: 32400
+    targetPort: 32400
+  
+  ingress:
+    enabled: true
+    className: "nginx"
+    annotations:
+      cert-manager.io/cluster-issuer: "letsencrypt-prod"
+      nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+      nginx.ingress.kubernetes.io/proxy-body-size: "0"
+    host: "plex.example.com"
+    tls:
+      enabled: true
+      secretName: "plex-tls"
+
+# WordPress sites configuration
+wordpress:
+  sites:
+    site1:
+      enabled: true
+      name: "site1"
+      host: "site1.example.com"
+    site2:
+      enabled: true
+      name: "site2"
+      host: "site2.example.com"
+    site3:
+      enabled: true
+      name: "site3"
+      host: "site3.example.com"
+  
+  # Common WordPress configuration
+  image:
+    repository: wordpress
+    tag: "6-apache"
+    pullPolicy: IfNotPresent
+  
+  persistence:
+    size: 10Gi
+    storageClass: ""
+    accessMode: ReadWriteOnce
+  
+  resources:
+    limits:
+      memory: 512Mi
+      cpu: 500m
+    requests:
+      memory: 256Mi
+      cpu: 250m
+  
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 80
+  
+  ingress:
+    enabled: true
+    className: "nginx"
+    annotations:
+      cert-manager.io/cluster-issuer: "letsencrypt-prod"
+      nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+    tls:
+      enabled: true
+  
+  # Database configuration for each site
+  mysql:
+    image:
+      repository: mysql
+      tag: "8.0"
+      pullPolicy: IfNotPresent
+    
+    auth:
+      rootPassword: "changeme"
+      database: "wordpress"
+      username: "wordpress"
+      password: "wordpress"
+    
+    persistence:
+      size: 20Gi
+      storageClass: ""
+      accessMode: ReadWriteOnce
+    
+    resources:
+      limits:
+        memory: 1Gi
+        cpu: 500m
+      requests:
+        memory: 512Mi
+        cpu: 250m
+
+# Ingress Controller configuration
+ingress-nginx:
+  enabled: true
+  controller:
+    service:
+      type: LoadBalancer
+    
+# Cert Manager configuration (for SSL certificates)
+cert-manager:
+  enabled: true
+  installCRDs: true

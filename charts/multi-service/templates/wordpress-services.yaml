@@ -1,0 +1,45 @@
+{{- range $siteName, $siteConfig := .Values.wordpress.sites }}
+{{- if $siteConfig.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "multi-service.fullname" $ }}-mysql-{{ $siteName }}
+  labels:
+    {{- include "multi-service.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: mysql
+    app.kubernetes.io/instance: {{ $siteName }}
+spec:
+  type: ClusterIP
+  ports:
+  - port: 3306
+    targetPort: 3306
+    protocol: TCP
+    name: mysql
+  selector:
+    {{- include "multi-service.selectorLabels" $ | nindent 4 }}
+    app.kubernetes.io/component: mysql
+    app.kubernetes.io/instance: {{ $siteName }}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "multi-service.fullname" $ }}-wordpress-{{ $siteName }}
+  labels:
+    {{- include "multi-service.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: wordpress
+    app.kubernetes.io/instance: {{ $siteName }}
+spec:
+  type: {{ $.Values.wordpress.service.type }}
+  ports:
+  - port: {{ $.Values.wordpress.service.port }}
+    targetPort: {{ $.Values.wordpress.service.targetPort }}
+    protocol: TCP
+    name: http
+  selector:
+    {{- include "multi-service.selectorLabels" $ | nindent 4 }}
+    app.kubernetes.io/component: wordpress
+    app.kubernetes.io/instance: {{ $siteName }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,181 @@
+{{- if .Values.plex.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "multi-service.fullname" . }}-plex
+  labels:
+    {{- include "multi-service.labels" . | nindent 4 }}
+    app.kubernetes.io/component: plex
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "multi-service.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: plex
+  template:
+    metadata:
+      labels:
+        {{- include "multi-service.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: plex
+    spec:
+      {{- if .Values.plex.rclone.enabled }}
+      initContainers:
+      - name: rclone-mount
+        image: "{{ .Values.plex.rclone.image.repository }}:{{ .Values.plex.rclone.image.tag }}"
+        imagePullPolicy: {{ .Values.plex.rclone.image.pullPolicy }}
+        command:
+        - /bin/sh
+        - -c
+        - |
+          echo "Checking rclone config..."
+          rclone config show
+          echo "Testing connection to {{ .Values.plex.rclone.remoteName }}:{{ .Values.plex.rclone.remotePath }}"
+          rclone ls {{ .Values.plex.rclone.remoteName }}:{{ .Values.plex.rclone.remotePath }} --max-depth 1 || echo "Remote path not accessible, will be created"
+          echo "rclone setup complete"
+        env:
+        - name: RCLONE_CONFIG
+          value: "/config/rclone/rclone.conf"
+        volumeMounts:
+        - name: rclone-config
+          mountPath: /config/rclone
+          readOnly: true
+        securityContext:
+          runAsUser: 0
+          capabilities:
+            add:
+            - SYS_ADMIN
+          privileged: true
+      {{- end }}
+      containers:
+      {{- if .Values.plex.rclone.enabled }}
+      - name: rclone
+        image: "{{ .Values.plex.rclone.image.repository }}:{{ .Values.plex.rclone.image.tag }}"
+        imagePullPolicy: {{ .Values.plex.rclone.image.pullPolicy }}
+        command:
+        - /bin/sh
+        - -c
+        - |
+          echo "Starting rclone mount..."
+          mkdir -p /media
+          rclone mount {{ .Values.plex.rclone.remoteName }}:{{ .Values.plex.rclone.remotePath }} /media \
+            --allow-other \
+            --allow-non-empty \
+            --vfs-cache-mode {{ .Values.plex.rclone.vfsCacheMode | default "writes" }} \
+            --vfs-cache-max-size {{ .Values.plex.rclone.vfsCacheMaxSize | default "1G" }} \
+            --vfs-cache-max-age {{ .Values.plex.rclone.vfsCacheMaxAge | default "1h" }} \
+            --buffer-size {{ .Values.plex.rclone.bufferSize | default "64M" }} \
+            --dir-cache-time {{ .Values.plex.rclone.dirCacheTime | default "5m" }} \
+            --timeout {{ .Values.plex.rclone.timeout | default "1h" }} \
+            --contimeout {{ .Values.plex.rclone.contimeout | default "60s" }} \
+            {{- range .Values.plex.rclone.extraArgs }}
+            {{ . }} \
+            {{- end }}
+            --log-level INFO
+        env:
+        - name: RCLONE_CONFIG
+          value: "/config/rclone/rclone.conf"
+        volumeMounts:
+        - name: rclone-config
+          mountPath: /config/rclone
+          readOnly: true
+        - name: rclone-media
+          mountPath: /media
+          mountPropagation: Bidirectional
+        securityContext:
+          runAsUser: 0
+          capabilities:
+            add:
+            - SYS_ADMIN
+          privileged: true
+        lifecycle:
+          preStop:
+            exec:
+              command:
+              - /bin/sh
+              - -c
+              - "fusermount -u /media || umount /media || true"
+      {{- end }}
+      - name: plex
+        image: "{{ .Values.plex.image.repository }}:{{ .Values.plex.image.tag }}"
+        imagePullPolicy: {{ .Values.plex.image.pullPolicy }}
+        ports:
+        - name: plex
+          containerPort: 32400
+          protocol: TCP
+        - name: plex-dlna
+          containerPort: 1900
+          protocol: UDP
+        - name: plex-dlna-tcp
+          containerPort: 32469
+          protocol: TCP
+        - name: plex-companion
+          containerPort: 3005
+          protocol: TCP
+        - name: plex-roku
+          containerPort: 8324
+          protocol: TCP
+        - name: plex-gdm1
+          containerPort: 32410
+          protocol: UDP
+        - name: plex-gdm2
+          containerPort: 32412
+          protocol: UDP
+        - name: plex-gdm3
+          containerPort: 32413
+          protocol: UDP
+        - name: plex-gdm4
+          containerPort: 32414
+          protocol: UDP
+        env:
+        - name: TZ
+          value: {{ .Values.global.timezone | quote }}
+        - name: PLEX_UID
+          value: "1000"
+        - name: PLEX_GID
+          value: "1000"
+        {{- if .Values.plex.claimToken }}
+        - name: PLEX_CLAIM
+          value: {{ .Values.plex.claimToken | quote }}
+        {{- end }}
+        - name: ADVERTISE_IP
+          value: "http://{{ .Values.plex.ingress.host }}:80/,https://{{ .Values.plex.ingress.host }}:443/"
+        - name: ALLOWED_NETWORKS
+          value: "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
+        volumeMounts:
+        - name: plex-config
+          mountPath: /config
+        {{- if .Values.plex.rclone.enabled }}
+        - name: rclone-media
+          mountPath: /data
+          mountPropagation: HostToContainer
+        {{- else }}
+        - name: plex-media
+          mountPath: /data
+        {{- end }}
+        - name: transcode-temp
+          mountPath: /transcode
+        resources:
+          {{- toYaml .Values.plex.resources | nindent 10 }}
+      securityContext:
+        fsGroup: 1000
+      volumes:
+      - name: plex-config
+        persistentVolumeClaim:
+          claimName: {{ include "multi-service.fullname" . }}-plex-config
+      {{- if not .Values.plex.rclone.enabled }}
+      - name: plex-media
+        persistentVolumeClaim:
+          claimName: {{ include "multi-service.fullname" . }}-plex-media
+      {{- end }}
+      - name: transcode-temp
+        emptyDir:
+          sizeLimit: 10Gi
+      {{- if .Values.plex.rclone.enabled }}
+      - name: rclone-config
+        secret:
+          secretName: {{ include "multi-service.fullname" . }}-rclone-config
+      - name: rclone-media
+        emptyDir: {}
+      {{- end }}
+      restartPolicy: Always
+{{- end }}

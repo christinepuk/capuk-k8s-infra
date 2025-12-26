@@ -1,0 +1,111 @@
+{{- range $siteName, $siteConfig := .Values.wordpress.sites }}
+{{- if $siteConfig.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "multi-service.fullname" $ }}-mysql-{{ $siteName }}
+  labels:
+    {{- include "multi-service.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: mysql
+    app.kubernetes.io/instance: {{ $siteName }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "multi-service.selectorLabels" $ | nindent 6 }}
+      app.kubernetes.io/component: mysql
+      app.kubernetes.io/instance: {{ $siteName }}
+  template:
+    metadata:
+      labels:
+        {{- include "multi-service.selectorLabels" $ | nindent 8 }}
+        app.kubernetes.io/component: mysql
+        app.kubernetes.io/instance: {{ $siteName }}
+    spec:
+      containers:
+      - name: mysql
+        image: "{{ $.Values.wordpress.mysql.image.repository }}:{{ $.Values.wordpress.mysql.image.tag }}"
+        imagePullPolicy: {{ $.Values.wordpress.mysql.image.pullPolicy }}
+        ports:
+        - name: mysql
+          containerPort: 3306
+          protocol: TCP
+        env:
+        - name: MYSQL_ROOT_PASSWORD
+          value: {{ $.Values.wordpress.mysql.auth.rootPassword | quote }}
+        - name: MYSQL_DATABASE
+          value: {{ $.Values.wordpress.mysql.auth.database | quote }}
+        - name: MYSQL_USER
+          value: {{ $.Values.wordpress.mysql.auth.username | quote }}
+        - name: MYSQL_PASSWORD
+          value: {{ $.Values.wordpress.mysql.auth.password | quote }}
+        volumeMounts:
+        - name: mysql-data
+          mountPath: /var/lib/mysql
+        resources:
+          {{- toYaml $.Values.wordpress.mysql.resources | nindent 10 }}
+      volumes:
+      - name: mysql-data
+        persistentVolumeClaim:
+          claimName: {{ include "multi-service.fullname" $ }}-mysql-{{ $siteName }}
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "multi-service.fullname" $ }}-wordpress-{{ $siteName }}
+  labels:
+    {{- include "multi-service.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: wordpress
+    app.kubernetes.io/instance: {{ $siteName }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "multi-service.selectorLabels" $ | nindent 6 }}
+      app.kubernetes.io/component: wordpress
+      app.kubernetes.io/instance: {{ $siteName }}
+  template:
+    metadata:
+      labels:
+        {{- include "multi-service.selectorLabels" $ | nindent 8 }}
+        app.kubernetes.io/component: wordpress
+        app.kubernetes.io/instance: {{ $siteName }}
+    spec:
+      containers:
+      - name: wordpress
+        image: "{{ $.Values.wordpress.image.repository }}:{{ $.Values.wordpress.image.tag }}"
+        imagePullPolicy: {{ $.Values.wordpress.image.pullPolicy }}
+        ports:
+        - name: http
+          containerPort: 80
+          protocol: TCP
+        env:
+        - name: WORDPRESS_DB_HOST
+          value: "{{ include "multi-service.fullname" $ }}-mysql-{{ $siteName }}:3306"
+        - name: WORDPRESS_DB_NAME
+          value: {{ $.Values.wordpress.mysql.auth.database | quote }}
+        - name: WORDPRESS_DB_USER
+          value: {{ $.Values.wordpress.mysql.auth.username | quote }}
+        - name: WORDPRESS_DB_PASSWORD
+          value: {{ $.Values.wordpress.mysql.auth.password | quote }}
+        - name: WORDPRESS_TABLE_PREFIX
+          value: "wp_"
+        - name: WORDPRESS_DEBUG
+          value: "0"
+        volumeMounts:
+        - name: wordpress-data
+          mountPath: /var/www/html
+        resources:
+          {{- toYaml $.Values.wordpress.resources | nindent 10 }}
+      volumes:
+      - name: wordpress-data
+        persistentVolumeClaim:
+          claimName: {{ include "multi-service.fullname" $ }}-wordpress-{{ $siteName }}
+      initContainers:
+      - name: wait-for-mysql
+        image: busybox:1.36
+        command: ['sh', '-c', 'until nc -z {{ include "multi-service.fullname" $ }}-mysql-{{ $siteName }} 3306; do echo waiting for mysql; sleep 2; done;']
+{{- end }}
+{{- end }}

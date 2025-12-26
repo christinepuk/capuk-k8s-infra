@@ -1,0 +1,91 @@
+{{/*
+Storage classes and Persistent Volume Claims for all services
+*/}}
+
+{{- if .Values.plex.enabled }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "multi-service.fullname" . }}-plex-config
+  labels:
+    {{- include "multi-service.labels" . | nindent 4 }}
+    app.kubernetes.io/component: plex
+spec:
+  accessModes:
+    - {{ .Values.plex.persistence.config.accessMode }}
+  resources:
+    requests:
+      storage: {{ .Values.plex.persistence.config.size }}
+  {{- if .Values.plex.persistence.config.storageClass }}
+  storageClassName: {{ .Values.plex.persistence.config.storageClass }}
+  {{- else if .Values.global.storageClass }}
+  storageClassName: {{ .Values.global.storageClass }}
+  {{- end }}
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "multi-service.fullname" . }}-plex-media
+  labels:
+    {{- include "multi-service.labels" . | nindent 4 }}
+    app.kubernetes.io/component: plex
+spec:
+  accessModes:
+    - {{ .Values.plex.persistence.media.accessMode }}
+  resources:
+    requests:
+      storage: {{ .Values.plex.persistence.media.size }}
+  {{- if .Values.plex.persistence.media.storageClass }}
+  storageClassName: {{ .Values.plex.persistence.media.storageClass }}
+  {{- else if .Values.global.storageClass }}
+  storageClassName: {{ .Values.global.storageClass }}
+  {{- end }}
+{{- end }}
+
+{{- range $siteName, $siteConfig := .Values.wordpress.sites }}
+{{- if $siteConfig.enabled }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "multi-service.fullname" $ }}-wordpress-{{ $siteName }}
+  labels:
+    {{- include "multi-service.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: wordpress
+    app.kubernetes.io/instance: {{ $siteName }}
+spec:
+  accessModes:
+    - {{ $.Values.wordpress.persistence.accessMode }}
+  resources:
+    requests:
+      storage: {{ $.Values.wordpress.persistence.size }}
+  {{- if $.Values.wordpress.persistence.storageClass }}
+  storageClassName: {{ $.Values.wordpress.persistence.storageClass }}
+  {{- else if $.Values.global.storageClass }}
+  storageClassName: {{ $.Values.global.storageClass }}
+  {{- end }}
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "multi-service.fullname" $ }}-mysql-{{ $siteName }}
+  labels:
+    {{- include "multi-service.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: mysql
+    app.kubernetes.io/instance: {{ $siteName }}
+spec:
+  accessModes:
+    - {{ $.Values.wordpress.mysql.persistence.accessMode }}
+  resources:
+    requests:
+      storage: {{ $.Values.wordpress.mysql.persistence.size }}
+  {{- if $.Values.wordpress.mysql.persistence.storageClass }}
+  storageClassName: {{ $.Values.wordpress.mysql.persistence.storageClass }}
+  {{- else if $.Values.global.storageClass }}
+  storageClassName: {{ $.Values.global.storageClass }}
+  {{- end }}
+{{- end }}
+{{- end }}

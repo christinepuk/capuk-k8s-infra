@@ -1,0 +1,25 @@
+apiVersion: v2
+name: multi-service
+description: A Helm chart for deploying Plex and WordPress sites on Kubernetes
+type: application
+version: 0.1.0
+appVersion: "1.0"
+
+maintainers:
+  - name: capuk-k8s
+    email: admin@example.com
+
+keywords:
+  - plex
+  - wordpress
+  - multi-service
+
+home: https://github.com/capuk-k8s/multi-service-chart
+sources:
+  - https://github.com/plexinc/plex-media-server
+  - https://wordpress.org/
+
+dependencies: []
+
+annotations:
+  category: Application
