@@ -1,0 +1,19 @@
+{{- if .Values.audiobookshelf.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "multi-service.fullname" . }}-audiobookshelf
+  labels:
+    {{- include "multi-service.labels" . | nindent 4 }}
+    app.kubernetes.io/component: audiobookshelf
+spec:
+  type: {{ .Values.audiobookshelf.service.type }}
+  ports:
+  - port: {{ .Values.audiobookshelf.service.port }}
+    targetPort: {{ .Values.audiobookshelf.service.targetPort }}
+    protocol: TCP
+    name: http
+  selector:
+    {{- include "multi-service.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: audiobookshelf
+{{- end }}

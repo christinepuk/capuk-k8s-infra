@@ -1,0 +1,154 @@
+{{- if .Values.audiobookshelf.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "multi-service.fullname" . }}-audiobookshelf
+  labels:
+    {{- include "multi-service.labels" . | nindent 4 }}
+    app.kubernetes.io/component: audiobookshelf
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "multi-service.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: audiobookshelf
+  template:
+    metadata:
+      labels:
+        {{- include "multi-service.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: audiobookshelf
+    spec:
+      {{- if .Values.audiobookshelf.rclone.enabled }}
+      initContainers:
+      - name: rclone-mount
+        image: "{{ .Values.audiobookshelf.rclone.image.repository }}:{{ .Values.audiobookshelf.rclone.image.tag }}"
+        imagePullPolicy: {{ .Values.audiobookshelf.rclone.image.pullPolicy }}
+        command:
+        - /bin/sh
+        - -c
+        - |
+          echo "Checking rclone config..."
+          rclone config show
+          echo "Testing connection to {{ .Values.audiobookshelf.rclone.remoteName }}:{{ .Values.audiobookshelf.rclone.remotePath }}"
+          rclone ls {{ .Values.audiobookshelf.rclone.remoteName }}:{{ .Values.audiobookshelf.rclone.remotePath }} --max-depth 1 || echo "Remote path not accessible, will be created"
+          echo "rclone setup complete"
+        env:
+        - name: RCLONE_CONFIG
+          value: "/config/rclone/rclone.conf"
+        volumeMounts:
+        - name: rclone-config
+          mountPath: /config/rclone
+          readOnly: true
+        securityContext:
+          runAsUser: 0
+          capabilities:
+            add:
+            - SYS_ADMIN
+          privileged: true
+      {{- end }}
+      containers:
+      {{- if .Values.audiobookshelf.rclone.enabled }}
+      - name: rclone
+        image: "{{ .Values.audiobookshelf.rclone.image.repository }}:{{ .Values.audiobookshelf.rclone.image.tag }}"
+        imagePullPolicy: {{ .Values.audiobookshelf.rclone.image.pullPolicy }}
+        command:
+        - /bin/sh
+        - -c
+        - |
+          echo "Starting rclone mount..."
+          mkdir -p /data
+          rclone mount {{ .Values.audiobookshelf.rclone.remoteName }}:{{ .Values.audiobookshelf.rclone.remotePath }} /data \
+            --allow-other \
+            --allow-non-empty \
+            --vfs-cache-mode {{ .Values.audiobookshelf.rclone.vfsCacheMode | default "writes" }} \
+            --vfs-cache-max-size {{ .Values.audiobookshelf.rclone.vfsCacheMaxSize | default "1G" }} \
+            --vfs-cache-max-age {{ .Values.audiobookshelf.rclone.vfsCacheMaxAge | default "1h" }} \
+            --buffer-size {{ .Values.audiobookshelf.rclone.bufferSize | default "64M" }} \
+            --dir-cache-time {{ .Values.audiobookshelf.rclone.dirCacheTime | default "5m" }} \
+            --timeout {{ .Values.audiobookshelf.rclone.timeout | default "1h" }} \
+            --contimeout {{ .Values.audiobookshelf.rclone.contimeout | default "60s" }} \
+            {{- range .Values.audiobookshelf.rclone.extraArgs }}
+            {{ . }} \
+            {{- end }}
+            --log-level INFO
+        env:
+        - name: RCLONE_CONFIG
+          value: "/config/rclone/rclone.conf"
+        volumeMounts:
+        - name: rclone-config
+          mountPath: /config/rclone
+          readOnly: true
+        - name: rclone-audiobooks
+          mountPath: /data
+          mountPropagation: Bidirectional
+        securityContext:
+          runAsUser: 0
+          capabilities:
+            add:
+            - SYS_ADMIN
+          privileged: true
+        lifecycle:
+          preStop:
+            exec:
+              command:
+              - /bin/sh
+              - -c
+              - "fusermount -u /data || umount /data || true"
+      {{- end }}
+      - name: audiobookshelf
+        image: "{{ .Values.audiobookshelf.image.repository }}:{{ .Values.audiobookshelf.image.tag }}"
+        imagePullPolicy: {{ .Values.audiobookshelf.image.pullPolicy }}
+        ports:
+        - name: http
+          containerPort: 80
+          protocol: TCP
+        env:
+        - name: AUDIOBOOKSHELF_UID
+          value: "99"
+        - name: AUDIOBOOKSHELF_GID
+          value: "100"
+        - name: TZ
+          value: {{ .Values.global.timezone | quote }}
+        volumeMounts:
+        - name: config
+          mountPath: /config
+        - name: audiobooks
+          mountPath: /audiobooks
+        - name: metadata
+          mountPath: /metadata
+        {{- if .Values.audiobookshelf.rclone.enabled }}
+        - name: rclone-audiobooks
+          mountPath: /data
+        {{- end }}
+        resources:
+          {{- toYaml .Values.audiobookshelf.resources | nindent 10 }}
+        livenessProbe:
+          httpGet:
+            path: /
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /
+            port: http
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      volumes:
+      - name: config
+        persistentVolumeClaim:
+          claimName: {{ include "multi-service.fullname" . }}-audiobookshelf-config
+      - name: audiobooks
+        persistentVolumeClaim:
+          claimName: {{ include "multi-service.fullname" . }}-audiobookshelf-audiobooks
+      - name: metadata
+        persistentVolumeClaim:
+          claimName: {{ include "multi-service.fullname" . }}-audiobookshelf-metadata
+      {{- if .Values.audiobookshelf.rclone.enabled }}
+      - name: rclone-config
+        secret:
+          secretName: {{ include "multi-service.fullname" . }}-rclone-secret
+      - name: rclone-audiobooks
+        emptyDir: {}
+      {{- end }}
+{{- end }}
