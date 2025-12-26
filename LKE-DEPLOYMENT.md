@@ -2,7 +2,7 @@
 
 Complete deployment guide for Plex and 3 WordPress sites on Linode Kubernetes Engine (LKE) using domain **christinepuk.net**.
 
-## 🏗️ Step 1: Create LKE Cluster
+## Step 1: Create LKE Cluster
 
 ### Via Linode Cloud Manager
 1. Log in to [Linode Cloud Manager](https://cloud.linode.com)
@@ -32,7 +32,7 @@ linode-cli lke cluster-create \
   --node_pools.count 3
 ```
 
-## 🔧 Step 2: Configure kubectl
+## Step 2: Configure kubectl
 
 ```bash
 # Download kubeconfig from Linode Cloud Manager
@@ -46,7 +46,7 @@ export KUBECONFIG=kubeconfig.yaml
 kubectl get nodes
 ```
 
-## 📦 Step 3: Install Prerequisites
+## Step 3: Install Prerequisites
 
 ### Install Helm (if not already installed)
 ```bash
@@ -104,7 +104,7 @@ spec:
 EOF
 ```
 
-## 🌐 Step 4: Configure DNS
+## Step 4: Configure DNS
 
 ### Get Load Balancer IP
 ```bash
@@ -124,7 +124,7 @@ djpup.christinepuk.net      A    <LOADBALANCER_IP>
 surf.christinepuk.net       A    <LOADBALANCER_IP>
 ```
 
-## 🚀 Step 5: Deploy the Multi-Service Chart
+## Step 5: Deploy the Multi-Service Chart
 
 ### Create LKE-Optimized Values File
 ```bash
@@ -210,7 +210,7 @@ helm install multi-service ./charts/multi-service \
 kubectl get pods -n multi-service -w
 ```
 
-## 📊 Step 6: Verify Deployment
+## Step 6: Verify Deployment
 
 ### Check All Components
 ```bash
@@ -244,7 +244,7 @@ curl -I https://djpup.christinepuk.net
 curl -I https://surf.christinepuk.net
 ```
 
-## 🔧 Step 7: Initial Configuration
+## Step 7: Initial Configuration
 
 ### Nextcloud Setup
 1. Visit `https://cloud.christinepuk.net`
@@ -264,7 +264,7 @@ For each WordPress site:
 2. Complete the 5-minute WordPress installation
 3. Configure your admin account and site settings
 
-## 💰 LKE Cost Optimization
+## LKE Cost Optimization
 
 ### Storage Optimization
 ```bash
@@ -291,7 +291,7 @@ helm upgrade multi-service ./charts/multi-service \
 kubectl apply -f https://raw.githubusercontent.com/linode/linode-cloud-controller-manager/master/deploy/cluster-autoscaler/cluster-autoscaler.yaml
 ```
 
-## 📈 Monitoring & Maintenance
+## Monitoring & Maintenance
 
 ### Install Monitoring Stack
 ```bash
@@ -352,7 +352,7 @@ kubectl describe certificate -n multi-service
 kubectl describe svc -n ingress-nginx ingress-nginx-controller
 ```
 
-## 🔄 Updates and Upgrades
+## Updates and Upgrades
 
 ### Upgrade Kubernetes Version
 1. Go to Linode Cloud Manager

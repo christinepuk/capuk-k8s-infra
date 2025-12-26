@@ -110,6 +110,13 @@ Add DNS records for:
 3. Add media libraries pointing to `/data`
 4. Configure remote access settings
 
+### Accessing Plex
+Your Plex should now be accessible via:
+
+- **Local access**: `kubectl port-forward svc/multi-service-plex 32400:32400 -n multi-service`
+- **Web access**: http://localhost:32400/web
+- **Domain access**: https://plex.christinepuk.net (if ingress is configured)
+
 ### WordPress Sites
 For each WordPress site:
 1. Access the site URL (e.g., `https://site1.yourdomain.com`)

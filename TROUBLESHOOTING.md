@@ -2,7 +2,7 @@
 
 Comprehensive troubleshooting guide for Plex and WordPress deployments on Linode LKE.
 
-## 🔍 General Diagnostics
+## General Diagnostics
 
 ### Check All Components
 ```bash
@@ -34,7 +34,7 @@ kubectl get events -n multi-service --sort-by='.lastTimestamp'
 kubectl get pods -n multi-service -w
 ```
 
-## 🎬 Plex Troubleshooting
+## Plex Troubleshooting
 
 ### Common Plex Issues
 
@@ -96,7 +96,7 @@ kubectl get endpoints -n multi-service | grep plex
 3. **If service works but ingress fails**: Check ingress configuration and SSL setup
 4. **If getting 401 Unauthorized**: This is normal - Plex needs initial setup via web UI
 
-## 🔧 LKE-Specific Issues
+## LKE-Specific Issues
 
 ### Resource Constraints on Small Clusters
 **Problem**: Pods stuck in pending with "Insufficient CPU" errors
@@ -114,6 +114,67 @@ wordpress:
       cpu: 100m      # Reduced from 200m  
       memory: 128Mi  # Reduced from 256Mi
 ```
+
+### High-Resource Pod Scheduling Issues
+**Problem**: Pod stuck pending with "0/4 nodes available: Insufficient cpu, memory" despite autoscaling
+**Real Example**: Plex pod requesting 2 CPU cores on LKE nodes with only 1 CPU each
+```bash
+# Diagnosis commands
+kubectl describe pod <pending-pod-name> -n multi-service | grep -A 5 Events
+kubectl describe nodes | grep -A 5 "Allocatable\|Allocated resources"
+```
+
+**Root Cause**: Each LKE node only has 1 CPU core allocatable, but pod requested 2000m (2 cores)
+**Solution**: Adjust resource requests to fit node capacity:
+```yaml
+# In lke-values.yaml
+plex:
+  resources:
+    requests:
+      memory: 1Gi                            # Reasonable for cluster capacity
+      cpu: 300m                              # Fits within node capacity  
+    limits:
+      memory: 2Gi                            # Still plenty for Plex
+      cpu: 800m                              # Max we can get on 1-core nodes
+```
+
+### PVC Storage Size Conflicts During Upgrades
+**Problem**: Helm upgrade fails with "field is immutable" for PVC storage size
+**Real Example**: 
+```
+Error: UPGRADE FAILED: cannot patch "multi-service-plex-media" with kind PersistentVolumeClaim: 
+PersistentVolumeClaim "multi-service-plex-media" is invalid: spec: Forbidden: 
+spec is immutable after creation except resources.requests for bound claims
+```
+
+**Solution**: Delete the conflicting PVC before upgrading:
+```bash
+# Check current PVCs
+kubectl get pvc -n multi-service
+
+# Delete the conflicting PVC (data will be preserved on PV)
+kubectl delete pvc multi-service-plex-media -n multi-service
+
+# Then run the helm upgrade
+helm upgrade multi-service ./charts/multi-service -f lke-values.yaml -n multi-service
+```
+
+### Autoscaling Success But Pod Still Pending
+**Problem**: Cluster autoscaler adds nodes but high-resource pod remains pending
+**Real Example**: Pod requiring 2 CPU + 4Gi memory across 4 nodes with existing workloads
+```bash
+# Check total cluster capacity vs. requests
+kubectl describe nodes | grep -E "(Allocatable|Allocated resources)" -A 3
+
+# Output showing issue:
+# Node 1: cpu: 950m (95%) memory: 672Mi (35%)  
+# Node 2: cpu: 890m (89%) memory: 1158Mi (61%)
+# Node 3: cpu: 750m (75%) memory: 768Mi (40%)
+# Node 4: cpu: 250m (25%) memory: 0 (0%)
+```
+
+**Root Cause**: While cluster expanded, no single node had 2000m CPU available due to existing workload distribution
+**Solution**: Reduce resource requests or implement pod affinity to consolidate workloads
 
 ### Storage Class Issues
 **Problem**: PVCs remain pending with unsupported access modes
@@ -169,7 +230,83 @@ kubectl describe nodes | grep -A5 -B5 gpu
 - **Memory Pressure**: Increase memory limits
 - **GPU Access**: Verify GPU drivers and device plugin installation
 
-## 📝 WordPress Troubleshooting
+#### rclone Object Storage Authentication Failures
+**Problem**: Plex can't access object storage with "SignatureDoesNotMatch" errors
+**Real Example**: 
+```
+ERROR : capuk-media/: error listing: SignatureDoesNotMatch: The request signature we calculated does not match the signature you provided.
+```
+
+**Root Cause**: rclone config format incompatible with Linode Object Storage authentication
+**Diagnosis Commands**:
+```bash
+# Check rclone configuration in secret
+kubectl get secret rclone-secret -o yaml -n multi-service | base64 -d
+
+# Test rclone connection from pod
+kubectl exec -it <plex-pod-name> -c rclone -n multi-service -- rclone ls linode:capuk-media
+```
+
+**Solution**: Use flattened config format with explicit auth settings:
+```yaml
+# In lke-values.yaml - rclone config section
+rclone:
+  config: |
+    [linode]
+    type = s3
+    access_key_id = YOUR_ACCESS_KEY
+    endpoint = us-iad-1.linodeobjects.com
+    env_auth = false                    # Critical: disable env auth
+    provider = Other
+    region = us-iad-1
+    secret_access_key = YOUR_SECRET_KEY
+```
+
+#### rclone Mount Not Working in Init Container
+**Problem**: Init container completes but rclone mount fails to work
+**Real Example**: Pod shows "rclone setup complete" but mount directory empty
+```bash
+# Check rclone sidecar logs
+kubectl logs <plex-pod-name> -c rclone -n multi-service
+
+# Check if mount directory accessible
+kubectl exec -it <plex-pod-name> -c plex -n multi-service -- ls -la /data
+```
+
+**Common Issues**:
+1. **FUSE not available**: rclone needs `--allow-other` and privileged mode
+2. **Mount directory permissions**: Check if directory is accessible between containers
+3. **Shared volume missing**: Ensure emptyDir volume shared between containers
+
+**Solution**: 
+```yaml
+# In plex deployment template
+containers:
+- name: rclone
+  securityContext:
+    privileged: true           # Required for FUSE
+  command: ["/bin/sh", "-c"]
+  args:
+    - |
+      echo "Starting rclone mount..."
+      rclone mount linode:capuk-media /data \
+        --allow-other \
+        --allow-non-empty \
+        --vfs-cache-mode writes \
+        --daemon
+  volumeMounts:
+  - name: media-data
+    mountPath: /data
+- name: plex  
+  volumeMounts:
+  - name: media-data           # Same shared volume
+    mountPath: /data
+volumes:
+- name: media-data
+  emptyDir: {}                 # Shared between containers
+```
+
+## WordPress Troubleshooting
 
 ### Common WordPress Issues
 
@@ -229,7 +366,7 @@ kubectl exec -it <wordpress-pod-name> -n multi-service -- top
 - **Plugin Optimization**: Remove unnecessary plugins
 - **Caching**: Implement WordPress caching plugins
 
-## 🗄️ Storage Troubleshooting
+## Storage Troubleshooting
 
 ### PVC Issues
 ```bash
@@ -257,7 +394,7 @@ kubectl exec -it <pod-name> -n multi-service -- dd if=/dev/zero of=/tmp/test bs=
 kubectl exec -it <pod-name> -n multi-service -- df -h
 ```
 
-## 🌐 Networking Troubleshooting
+## Networking Troubleshooting
 
 ### Ingress Issues
 ```bash
@@ -290,7 +427,7 @@ dig tv.christinepuk.net
 - **DNS Propagation**: Wait up to 48 hours for DNS changes
 - **Wrong IP**: Verify LoadBalancer IP is correct
 
-## 🔒 SSL/TLS Troubleshooting
+## SSL/TLS Troubleshooting
 
 ### Certificate Issues
 ```bash
@@ -347,7 +484,7 @@ kubectl exec -it <pod-name> -n multi-service -- free -h
 - **Optimize Applications**: Reduce memory usage in applications
 - **Scale Horizontally**: Add more replicas instead of increasing resources
 
-## 🔄 LKE-Specific Issues
+## LKE-Specific Issues
 
 ### LoadBalancer Not Getting External IP
 ```bash
@@ -384,7 +521,7 @@ kubectl get deployment cluster-autoscaler -n kube-system
 kubectl logs deployment/cluster-autoscaler -n kube-system
 ```
 
-## 🛠️ Emergency Procedures
+## Emergency Procedures
 
 ### Force Pod Restart
 ```bash
@@ -393,6 +530,69 @@ kubectl delete pod <pod-name> -n multi-service
 
 # Restart deployment (rolling restart)
 kubectl rollout restart deployment/<deployment-name> -n multi-service
+```
+
+### Multiple Failed/Completed Pods Cluttering Namespace
+**Problem**: Many old completed pods remain after multiple deployment attempts
+**Real Example**:
+```bash
+kubectl get pods -n multi-service | grep plex
+# Shows multiple Completed pods: multi-service-plex-587d5cfdd5-xxxxx (0/2 Completed)
+```
+
+**Cleanup Commands**:
+```bash
+# Remove all completed pods
+kubectl delete pods --field-selector=status.phase=Succeeded -n multi-service
+
+# Remove all failed pods  
+kubectl delete pods --field-selector=status.phase=Failed -n multi-service
+
+# Force cleanup of multiple old replica sets
+kubectl get replicasets -n multi-service | grep "plex.*0.*0.*0" | awk '{print $1}' | xargs kubectl delete rs -n multi-service
+```
+
+### Pod Stuck in Init Phase During Resource Changes
+**Problem**: New pod created during resource scaling stuck in "Init:0/1" state
+**Real Example**: Pod scheduled to node but init container not progressing
+```bash
+# Check pod scheduling
+kubectl describe pod <pod-name> -n multi-service | grep -A 5 Events
+
+# Expected output for successful scheduling:
+# Normal  Scheduled  25s   default-scheduler  Successfully assigned multi-service/multi-service-plex-xxx to lke549969-799077-xxx
+
+# Check init container logs
+kubectl logs <pod-name> -c <init-container-name> -n multi-service
+```
+
+**Solutions**:
+1. **Wait for Init Container**: rclone setup can take 30-60 seconds
+2. **Check Resource Availability**: Ensure node has sufficient resources for init + main containers
+3. **Verify Init Logic**: Check if init container is actually progressing through steps
+
+### Successful Resource Scaling Verification
+**Problem**: How to confirm resource scaling worked correctly
+**Real Example Process**:
+```bash
+# 1. Check pod transition from pending to running
+kubectl get pods -n multi-service | grep plex | grep -v Completed
+
+# Expected progression:
+# multi-service-plex-xxx  0/2  Pending     0  30s  (old high-resource pod)
+# multi-service-plex-yyy  0/2  Init:0/1    0  10s  (new pod with correct resources)  
+# multi-service-plex-yyy  2/2  Running     0  45s  (fully started)
+
+# 2. Verify resource allocation
+kubectl describe pod <running-pod-name> -n multi-service | grep -A 5 -B 5 "Requests\|Limits"
+
+# 3. Confirm both containers running
+kubectl get pods <pod-name> -o jsonpath='{.status.containerStatuses[*].name}' -n multi-service
+# Should show: plex rclone
+
+# 4. Test functionality
+kubectl logs <pod-name> -c rclone -n multi-service | tail -5
+kubectl port-forward svc/multi-service-plex 32400:32400 -n multi-service
 ```
 
 ### Emergency Rollback
@@ -413,7 +613,7 @@ kubectl delete pods --field-selector=status.phase=Failed -n multi-service
 kubectl patch pod <pod-name> -p '{"metadata":{"finalizers":null}}' -n multi-service
 ```
 
-## 📞 Getting Help
+## Getting Help
 
 ### Useful Commands for Support
 ```bash

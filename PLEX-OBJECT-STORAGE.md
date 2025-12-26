@@ -2,13 +2,13 @@
 
 This guide shows how to configure Plex to use object storage (like Linode Object Storage) via rclone instead of local persistent volumes.
 
-## 🗂️ Prerequisites
+## Prerequisites
 
 1. **Object Storage Bucket**: Create a bucket in your object storage provider OR use an existing bucket
 2. **Access Credentials**: Get access key and secret key for your bucket
 3. **Media Files**: Upload your media to the bucket (optional - can be done later)
 
-## 📦 Using an Existing Object Storage Bucket
+## Using an Existing Object Storage Bucket
 
 If you already have media files in object storage (like an existing Linode Object Storage bucket), you can connect Plex directly to it.
 
@@ -59,14 +59,14 @@ your-bucket/
     └── Audio/
 ```
 
-**✅ Your existing `capuk-media` bucket is already well-organized with:**
+**Your existing `capuk-media` bucket is already well-organized with:**
 - `Books/` - Audiobook collection
 - `Film/` - Movies  
 - `Music/` - Music library
 - `TV/` - TV shows
 - `CV/` - Other content
 
-## 🔧 Configuration Steps
+## Configuration Steps
 
 ### Step 1: Configure Object Storage Credentials
 
@@ -227,7 +227,7 @@ After deployment, you need to run through the initial Plex server setup:
 
 **Important**: The initial setup **must** be done via `localhost:32400` for security reasons. After setup, you can access Plex through the external URL.
 
-## 🔍 Verifying Your Existing Media
+## Verifying Your Existing Media
 
 Once deployed, verify Plex can access your existing media:
 
@@ -254,10 +254,10 @@ kubectl exec -n multi-service deployment/multi-service-plex -c plex -- ls /data/
 # Verify files are readable (test with a known file)
 kubectl exec -n multi-service deployment/multi-service-plex -c plex -- \
   head -c 1000 "/data/Books/Audio/1772_Sun Tzu_THE ART OF WAR.mp3" > /dev/null && \
-  echo "✅ File access working" || echo "❌ File access failed"
+  echo "File access working" || echo "File access failed"
 ```
 
-## 🎬 Setting Up Plex Libraries with Existing Media
+## Setting Up Plex Libraries with Existing Media
 
 Once your existing media is accessible:
 
@@ -300,7 +300,7 @@ my-bucket/
 │       └── Artist2/
 ```
 
-## 🚀 Performance Optimization
+## Performance Optimization
 
 ### Cache Settings by Use Case
 
@@ -340,7 +340,7 @@ plex:
       cpu: 1000m
 ```
 
-## 🔍 Troubleshooting
+## Troubleshooting
 
 ### Check rclone Mount Status
 ```bash
@@ -394,7 +394,7 @@ Then check logs:
 kubectl exec -n multi-service deployment/multi-service-plex -c rclone -- cat /tmp/rclone.log
 ```
 
-## 📋 Migration Scenarios
+## Migration Scenarios
 
 ### From Local Storage to Existing Bucket
 
@@ -440,4 +440,4 @@ capuk-media/
 └── CV/             → Additional content at /data/CV
 ```
 
-**✅ No reorganization required** - Plex is flexible with directory structures!
+**No reorganization required** - Plex is flexible with directory structures!
