@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "multi-service.fullname" . }}-php-config
+  labels:
+    {{- include "multi-service.labels" . | nindent 4 }}
+    app.kubernetes.io/component: php-config
+data:
+  uploads.ini: |
+    upload_max_filesize = 2000M
+    post_max_size = 2000M
+    max_execution_time = 300
+    max_input_time = 300
+    memory_limit = 512M
