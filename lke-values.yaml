@@ -94,6 +94,10 @@ wordpress:
       enabled: true
       name: "surf"
       host: "surf.christinepuk.net"
+    site4:
+      enabled: true
+      name: "dizzy"
+      host: "thedizzyengineer.com"
   
   persistence:
     size: 20Gi
@@ -107,4 +111,5 @@ wordpress:
       rootPassword: "${MYSQL_ROOT_PASSWORD}"
       database: "wordpress"
       username: "wordpress"
+      password: "${MYSQL_PASSWORD}"
       password: "${MYSQL_PASSWORD}"

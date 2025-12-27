@@ -94,6 +94,12 @@ spec:
           value: "wp_"
         - name: WORDPRESS_DEBUG
           value: "0"
+        - name: PHP_INI_UPLOAD_MAX_FILESIZE
+          value: "2000M"
+        - name: PHP_INI_POST_MAX_SIZE
+          value: "2000M"
+        - name: PHP_INI_MAX_EXECUTION_TIME
+          value: "300"
         volumeMounts:
         - name: wordpress-data
           mountPath: /var/www/html

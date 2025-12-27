@@ -197,6 +197,10 @@ wordpress:
       enabled: true
       name: "site3"
       host: "site3.example.com"
+    site4:
+      enabled: true
+      name: "site4"
+      host: "thedizzyengineer.com"
   
   # Common WordPress configuration
   image:
