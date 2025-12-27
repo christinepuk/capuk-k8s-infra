@@ -75,8 +75,16 @@ source .env
 ```
 
 ### Step 3: Deploy the Chart
+
+**🚀 Recommended: Use Safe Deployment Script**
 ```bash
-# Deploy with proper variable substitution
+# This is the recommended way to deploy (prevents common issues)
+./scripts/safe-deploy.sh
+```
+
+**Alternative: Manual Deployment**
+```bash
+# Only use this if you can't use the safe deployment script
 envsubst < production-values.yaml | helm install multi-service ./charts/multi-service \
   -f - \
   --namespace multi-service \
@@ -97,6 +105,41 @@ kubectl get ingress -n multi-service
 # Check persistent volumes
 kubectl get pvc -n multi-service
 ```
+
+## Updates and Maintenance
+
+### Updating the Deployment
+
+**🔧 Recommended: Use Safe Deployment Script**
+```bash
+# Make changes to your values.yaml or chart templates
+# Then run the safe deployment script:
+./scripts/safe-deploy.sh
+```
+
+**Troubleshooting Stuck Deployments**
+```bash
+# If deployment gets stuck with pods in Init/Pending state:
+./scripts/troubleshoot.sh
+
+# Then retry deployment:
+./scripts/safe-deploy.sh
+```
+
+### Why Use Safe Deployment?
+
+The safe deployment script (`./scripts/safe-deploy.sh`) prevents common issues:
+
+1. **Persistent Volume Conflicts**: Automatically handles ReadWriteOnce volume attachment issues
+2. **Stuck Pods**: Cleans up pods stuck in Init or Pending states
+3. **Deployment Validation**: Ensures deployment actually succeeds before completing
+4. **Rollback Safety**: Proper error handling and status reporting
+
+**Without the safe script, you may experience:**
+- Multiple pods stuck in `ContainerCreating` state
+- `Multi-Attach error for volume` errors
+- Deployments that appear successful but aren't actually working
+- Need for manual cleanup after failed deployments
 
 ### Step 4: Configure DNS
 Point your domains to the ingress controller's external IP:

@@ -8,6 +8,8 @@ metadata:
     app.kubernetes.io/component: audiobookshelf
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       {{- include "multi-service.selectorLabels" . | nindent 6 }}

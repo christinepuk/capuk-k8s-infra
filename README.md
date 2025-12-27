@@ -43,11 +43,26 @@ cd capuk-k8s-infra
 # Source environment variables (REQUIRED)
 source .env
 
-# Deploy applications with proper variable substitution
+# Deploy using safe deployment script (RECOMMENDED)
+./scripts/safe-deploy.sh
+
+# Or deploy manually with variable substitution
 envsubst < lke-values.yaml | helm install multi-service ./charts/multi-service \
   -f - \
   --namespace multi-service \
   --create-namespace
+```
+
+### 2. Troubleshooting
+
+If you encounter deployment issues (stuck pods, volume conflicts):
+
+```bash
+# Automatic troubleshooting and cleanup
+./scripts/troubleshoot.sh
+
+# Then retry deployment
+./scripts/safe-deploy.sh
 ```
 
 ### 2. Complete Plex Setup

@@ -2,6 +2,37 @@
 
 Comprehensive troubleshooting guide for Plex, AudioBookShelf, and WordPress deployments on Linode LKE.
 
+## Quick Fixes
+
+### 🚨 Emergency Deployment Issues
+If you're experiencing stuck pods, persistent volume conflicts, or deployment failures:
+
+**Use the automated troubleshooting script:**
+```bash
+./scripts/troubleshoot.sh
+```
+
+This script will automatically:
+- Clean up stuck/pending pods
+- Scale down problematic replica sets
+- Show current status
+- Provide next steps
+
+### 🔧 Safe Deployment Method
+**Always use the safe deployment script for updates:**
+```bash
+./scripts/safe-deploy.sh
+```
+
+This prevents common deployment issues by:
+- Cleaning up stuck pods before deployment
+- Using proper Helm upgrade with wait flags
+- Validating deployment success
+- Handling persistent volume conflicts automatically
+
+### 📋 Manual Troubleshooting
+If automated scripts don't resolve the issue, continue with manual diagnostics below.
+
 ## General Diagnostics
 
 ### Check All Components
@@ -65,6 +96,14 @@ kubectl get pvc -n multi-service
 ```
 
 **Solution**:
+
+**Automated Fix (Recommended):**
+```bash
+# Use the troubleshooting script for automatic cleanup
+./scripts/troubleshoot.sh
+```
+
+**Manual Fix (if needed):**
 ```bash
 # Step 1: Delete stuck pods
 kubectl delete pod <stuck-pod-name> -n multi-service --force
@@ -83,9 +122,10 @@ kubectl get pods -n multi-service
 ```
 
 **Prevention**:
+- **Always use `./scripts/safe-deploy.sh` for deployments** instead of direct `helm upgrade`
+- All deployments now use `strategy: type: Recreate` to prevent volume conflicts
 - Use `kubectl rollout status deployment/<name> -n multi-service` to monitor deployments
-- Consider `kubectl rollout restart` instead of multiple `helm upgrade` commands for config changes
-- Always check `kubectl get pods -n multi-service` before deploying updates
+- Check `kubectl get pods -n multi-service` before deploying updates
 
 ## Plex Troubleshooting
 
