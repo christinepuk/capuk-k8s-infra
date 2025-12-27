@@ -103,12 +103,18 @@ spec:
         volumeMounts:
         - name: wordpress-data
           mountPath: /var/www/html
+        - name: php-config
+          mountPath: /usr/local/etc/php/conf.d/uploads.ini
+          subPath: uploads.ini
         resources:
           {{- toYaml $.Values.wordpress.resources | nindent 10 }}
       volumes:
       - name: wordpress-data
         persistentVolumeClaim:
           claimName: {{ include "multi-service.fullname" $ }}-wordpress-{{ $siteName }}
+      - name: php-config
+        configMap:
+          name: {{ include "multi-service.fullname" $ }}-php-config
       initContainers:
       - name: wait-for-mysql
         image: busybox:1.36

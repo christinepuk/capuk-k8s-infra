@@ -81,6 +81,9 @@ plex:
 
 # WordPress sites
 wordpress:
+  ingress:
+    annotations:
+      nginx.ingress.kubernetes.io/proxy-body-size: "2000m"
   sites:
     site1:
       enabled: true

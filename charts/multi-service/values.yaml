@@ -231,7 +231,7 @@ wordpress:
     className: "nginx"
     annotations:
       cert-manager.io/cluster-issuer: "letsencrypt-prod"
-      nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+      nginx.ingress.kubernetes.io/proxy-body-size: "2000m"
     tls:
       enabled: true
   
