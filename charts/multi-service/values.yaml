@@ -107,7 +107,7 @@ plex:
   
   # rclone configuration for object storage
   rclone:
-    enabled: false
+    enabled: true
     image:
       repository: rclone/rclone
       tag: "latest"
@@ -151,7 +151,7 @@ plex:
       accessMode: ReadWriteOnce
     media:
       enabled: true
-      size: 500Gi
+      size: 10Gi
       storageClass: ""
       accessMode: ReadWriteOnce
   
